@@ -7,12 +7,14 @@ const concat = require('concat-stream');
 const EventEmitter = require('events');
 const extend = require('extend');
 const fs = require('fs');
+const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
 
 function* build(inputPath, outputPath) {
   const result = yield compile(inputPath);
+  yield mkdirp(path.dirname(outputPath));
   yield writeFile(outputPath, result.bundle);
   return result;
 }
@@ -31,6 +33,8 @@ function watch(inputPath, outputPath) {
   co(function* () {
     watcher.on('change', onChange);
     watcher.on('unlink', onChange);
+
+    yield mkdirp(path.dirname(outputPath));
 
     while (true) {
       try {
@@ -162,6 +166,17 @@ function compile(entrypoint, cache) {
         inputs: inputs
       });
     }));
+  });
+}
+
+function mkdirp(dir, options) {
+  return new Promise(function (resolve, reject) {
+    _mkdirp(dir, options, err => {
+      if (!err)
+        resolve();
+      else
+        reject(err);
+    });
   });
 }
 

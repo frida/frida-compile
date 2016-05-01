@@ -23,6 +23,7 @@
     "commander": "^2.9.0",
     "concat-stream": "^1.5.1",
     "extend": "^3.0.0",
+    "mkdirp": "^0.5.1",
     "mold-source-map": "^0.4.0",
     "node-notifier": "^4.5.0",
     "through2": "^2.0.1"
