@@ -128,7 +128,7 @@ function compile(entrypoint, cache) {
     const inputs = new Set();
 
     const b = browserify(entrypoint, {
-      basedir: path.dirname(entrypoint),
+      basedir: (path.extname(entrypoint) === '.js') ? path.dirname(entrypoint) : entrypoint,
       cache: cache,
       debug: true
     })
