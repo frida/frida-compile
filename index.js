@@ -6,20 +6,27 @@ const co = require('co');
 const concat = require('concat-stream');
 const EventEmitter = require('events');
 const extend = require('extend');
+const frida = require('frida');
 const fs = require('fs');
 const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
 
-function* build(inputPath, outputPath) {
-  const result = yield compile(inputPath);
+let getSystemSessionPromise = null;
+
+function* build(inputPath, outputPath, options) {
+  options = options || {};
+
+  const result = yield compile(inputPath, {}, options);
+
   yield mkdirp(path.dirname(outputPath));
   yield writeFile(outputPath, result.bundle);
+
   return result;
 }
 
-function watch(inputPath, outputPath) {
+function watch(inputPath, outputPath, options) {
   const events = new EventEmitter();
   const cache = {};
   const watcher = chokidar.watch([], { persistent: true });
@@ -29,6 +36,8 @@ function watch(inputPath, outputPath) {
   let lastChange = null;
   let timer = null;
   const ON_CHANGE_DELAY = 50;
+
+  options = options || {};
 
   co(function* () {
     watcher.on('change', onChange);
@@ -41,7 +50,7 @@ function watch(inputPath, outputPath) {
         const startFiles = new Set(Object.keys(cache));
         const startTime = Date.now();
 
-        const result = yield compile(inputPath, cache);
+        const result = yield compile(inputPath, cache, options);
 
         events.emit('compile', {
           files: Object.keys(cache).filter(file => !startFiles.has(file)),
@@ -121,9 +130,7 @@ function watch(inputPath, outputPath) {
   }
 }
 
-function compile(entrypoint, cache) {
-  cache = cache || {};
-
+function compile(entrypoint, cache, options) {
   return new Promise(function (resolve, reject) {
     const inputs = new Set();
 
@@ -161,12 +168,43 @@ function compile(entrypoint, cache) {
     })
     .pipe(mold.transform(trimSourceMap))
     .pipe(concat(function (buf) {
-      resolve({
-        bundle: buf,
-        inputs: inputs
-      });
+      if (options.bytecode) {
+        compileToBytecode(buf.toString())
+        .then(bytecode => {
+          resolve({
+            bundle: bytecode,
+            inputs: inputs
+          });
+        })
+        .catch(reject);
+      } else {
+        resolve({
+          bundle: buf,
+          inputs: inputs
+        });
+      }
     }));
   });
+}
+
+function compileToBytecode(source) {
+  return co(function* () {
+    const systemSession = yield getSystemSession();
+    const bytecode = yield systemSession.compileScript(source);
+    return bytecode;
+  });
+}
+
+function getSystemSession() {
+  if (getSystemSessionPromise === null) {
+    getSystemSessionPromise = co(function* () {
+      const systemSession = yield frida.attach(0);
+      yield systemSession.disableJit();
+      return systemSession;
+    });
+  }
+
+  return getSystemSessionPromise;
 }
 
 function mkdirp(dir, options) {
