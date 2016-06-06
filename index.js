@@ -41,7 +41,10 @@ function watch(inputPath, outputPath, options) {
 
   co(function* () {
     watcher.on('change', onChange);
-    watcher.on('unlink', onChange);
+    watcher.on('unlink', path => {
+      watched.delete(path);
+      onChange(path);
+    });
 
     yield mkdirp(path.dirname(outputPath));
 
