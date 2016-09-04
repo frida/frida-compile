@@ -4,6 +4,7 @@ const browserify = require('browserify');
 const chokidar = require('chokidar');
 const co = require('co');
 const concat = require('concat-stream');
+const cylang = require('cylang');
 const EventEmitter = require('events');
 const extend = require('extend');
 const frida = require('frida');
@@ -139,6 +140,7 @@ function compile(entrypoint, cache, options) {
 
     const b = browserify(entrypoint, {
       basedir: (path.extname(entrypoint) === '.js') ? path.dirname(entrypoint) : entrypoint,
+      extensions: ['.js', '.json', '.cy'],
       cache: cache,
       debug: true
     })
@@ -147,6 +149,34 @@ function compile(entrypoint, cache, options) {
     })
     .on('file', function (file) {
       inputs.add(file);
+    })
+    .transform(function (file) {
+      const isCylang = file.lastIndexOf('.cy') === file.length - 3;
+      if (!isCylang)
+        return through();
+
+      const chunks = [];
+      let size = 0;
+      return through(
+        function (chunk, enc, callback) {
+          chunks.push(chunk);
+          size += chunk.length;
+          callback();
+        },
+        function (callback) {
+          const code = Buffer.concat(chunks, size).toString();
+          try {
+            const js = cylang.compile(code, {
+              strict: false,
+              pretty: true
+            });
+            this.push(new Buffer(js));
+            callback();
+          } catch (e) {
+            callback(e);
+          }
+        }
+      );
     })
     .transform('babelify', {
       presets: ['es2015']
