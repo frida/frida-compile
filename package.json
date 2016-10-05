@@ -24,7 +24,7 @@
     "concat-stream": "^1.5.1",
     "cylang": "^1.0.3",
     "extend": "^3.0.0",
-    "frida": "^7.2.0",
+    "frida": "^8.0.0",
     "mkdirp": "^0.5.1",
     "mold-source-map": "^0.4.0",
     "node-notifier": "^4.5.0",
