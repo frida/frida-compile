@@ -16,6 +16,11 @@ const through = require('through2');
 
 let getSystemSessionPromise = null;
 
+const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
+  _process: require.resolve('frida-process'),
+  net: require.resolve('frida-net'),
+});
+
 function* build(inputPath, outputPath, options) {
   options = options || {};
 
@@ -141,6 +146,7 @@ function compile(entrypoint, cache, options) {
     const b = browserify(entrypoint, {
       basedir: (path.extname(entrypoint) === '.js') ? path.dirname(entrypoint) : entrypoint,
       extensions: ['.js', '.json', '.cy'],
+      builtins: fridaBuiltins,
       cache: cache,
       debug: true
     })
