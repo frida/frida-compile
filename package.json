@@ -25,6 +25,7 @@
     "cylang": "^1.0.3",
     "extend": "^3.0.0",
     "frida": "^8.1.1",
+    "frida-buffer": "^1.0.0",
     "frida-net": "^1.0.0",
     "frida-process": "^1.0.0",
     "mkdirp": "^0.5.1",

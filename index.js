@@ -18,6 +18,7 @@ let getSystemSessionPromise = null;
 
 const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   _process: require.resolve('frida-process'),
+  buffer: require.resolve('frida-buffer'),
   net: require.resolve('frida-net'),
 });
 
