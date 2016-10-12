@@ -20,6 +20,7 @@ const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   _process: require.resolve('frida-process'),
   buffer: require.resolve('frida-buffer'),
   net: require.resolve('frida-net'),
+  bignum: require.resolve('bignumber.js'),
 });
 
 function* build(inputPath, outputPath, options) {
