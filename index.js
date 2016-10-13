@@ -17,11 +17,12 @@ const through = require('through2');
 let getSystemSessionPromise = null;
 
 const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
-  _process: require.resolve('frida-process'),
-  buffer: require.resolve('frida-buffer'),
-  net: require.resolve('frida-net'),
-  http: require.resolve('frida-http'),
-  bignum: require.resolve('bignumber.js'),
+  '_process': require.resolve('frida-process'),
+  'buffer': require.resolve('frida-buffer'),
+  'net': require.resolve('frida-net'),
+  'http': require.resolve('frida-http'),
+  'bignum': require.resolve('bignumber.js'),
+  'any-promise': require.resolve('frida-any-promise'),
 });
 
 function* build(inputPath, outputPath, options) {
