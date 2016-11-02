@@ -11,6 +11,7 @@ const version = require('../package.json').version;
 program
     .version(version)
     .usage('[options] <module>')
+    .option('-t, --target [runtime]', 'set target runtime [any]', 'any')
     .option('-o, --output <file>', 'set output <file>')
     .option('-w, --watch', 'watch for changes and recompile')
     .option('-b, --bytecode', 'output bytecode')
@@ -23,6 +24,7 @@ if (!inputModule || !outputPath)
   program.help();
 const inputPath = require.resolve(path.resolve(process.cwd(), inputModule));
 const options = {
+  target: program.target,
   bytecode: !!program.bytecode
 };
 
