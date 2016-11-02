@@ -187,10 +187,13 @@ function compile(entrypoint, cache, options) {
           }
         }
       );
-    })
-    .transform('babelify', {
-      presets: ['es2015']
     });
+
+    if (options.target !== 'V8') {
+      b.transform('babelify', {
+        presets: ['es2015']
+      });
+    }
 
     b.pipeline.get('deps').push(through.obj(function (row, enc, next) {
       const file = row.expose ? b._expose[row.id] : row.file;
