@@ -195,6 +195,15 @@ function compile(entrypoint, cache, options) {
       });
     }
 
+    if (options.compress) {
+      b.transform({
+        global: true,
+        mangle: {
+          toplevel: true
+        }
+      }, 'uglifyify');
+    }
+
     b.pipeline.get('deps').push(through.obj(function (row, enc, next) {
       const file = row.expose ? b._expose[row.id] : row.file;
       inputs.add(file);

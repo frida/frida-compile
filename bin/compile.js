@@ -15,6 +15,7 @@ program
     .option('-o, --output <file>', 'set output <file>')
     .option('-w, --watch', 'watch for changes and recompile')
     .option('-b, --bytecode', 'output bytecode')
+    .option('-c, --compress', 'compress using UglifyJS2')
     .parse(process.argv);
 
 const inputModule = program.args[0];
@@ -25,7 +26,8 @@ if (!inputModule || !outputPath)
 const inputPath = require.resolve(path.resolve(process.cwd(), inputModule));
 const options = {
   target: program.target,
-  bytecode: !!program.bytecode
+  bytecode: !!program.bytecode,
+  compress: !!program.compress,
 };
 
 if (!watch) {
