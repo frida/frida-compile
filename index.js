@@ -4,10 +4,8 @@ const browserify = require('browserify');
 const chokidar = require('chokidar');
 const co = require('co');
 const concat = require('concat-stream');
-const cylang = require('cylang');
 const EventEmitter = require('events');
 const extend = require('extend');
-const frida = require('frida');
 const fs = require('fs');
 const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
@@ -176,11 +174,21 @@ function compile(entrypoint, cache, options) {
         function (callback) {
           const code = Buffer.concat(chunks, size).toString();
           try {
+            let cylang;
+
+            try {
+              cylang = require('cylang');
+            } catch (e) {
+              throw new Error('Please `npm install cylang` for .cy compilation support');
+            }
+
             const js = cylang.compile(code, {
               strict: false,
               pretty: true
             });
+
             this.push(new Buffer(js));
+
             callback();
           } catch (e) {
             callback(e);
@@ -253,6 +261,14 @@ function compileToBytecode(source) {
 function getSystemSession() {
   if (getSystemSessionPromise === null) {
     getSystemSessionPromise = co(function* () {
+      let frida;
+
+      try {
+        frida = require('frida');
+      } catch (e) {
+        throw new Error('Please `npm install frida` for bytecode compilation support');
+      }
+
       const systemSession = yield frida.attach(0);
       yield systemSession.disableJit();
       return systemSession;
