@@ -11,10 +11,10 @@ const version = require('../package.json').version;
 program
     .version(version)
     .usage('[options] <module>')
-    .option('-t, --target [runtime]', 'set target runtime [any]', 'any')
     .option('-o, --output <file>', 'set output <file>')
     .option('-w, --watch', 'watch for changes and recompile')
     .option('-b, --bytecode', 'output bytecode')
+    .option('-x, --no-babelify', 'skip Babel transforms')
     .option('-c, --compress', 'compress using UglifyJS2')
     .option('-a, --use-absolute-paths', 'use absolute source paths')
     .parse(process.argv);
@@ -28,6 +28,7 @@ const inputPath = require.resolve(path.resolve(process.cwd(), inputModule));
 const options = {
   target: program.target,
   bytecode: !!program.bytecode,
+  babelify: program.babelify,
   compress: !!program.compress,
   useAbsolutePaths: !!program.useAbsolutePaths
 };

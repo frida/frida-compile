@@ -197,7 +197,7 @@ function compile(entrypoint, cache, options) {
       );
     });
 
-    if (options.target !== 'V8') {
+    if (options.babelify) {
       b.transform('babelify', {
         sourceMapsAbsolute: !!options.useAbsolutePaths
       });
