@@ -149,6 +149,7 @@ function compile(entrypoint, cache, options) {
       basedir: (path.extname(entrypoint) === '.js') ? path.dirname(entrypoint) : entrypoint,
       extensions: ['.js', '.json', '.cy'],
       builtins: fridaBuiltins,
+      ignoreTransform: !options.babelify ? ['babelify'] : [],
       cache: cache,
       debug: true
     })
