@@ -209,6 +209,10 @@ function compile(entrypoint, cache, options) {
         global: true,
         mangle: {
           toplevel: true
+        },
+        output: {
+          beautify: true,
+          indent_level: 2
         }
       }, 'uglifyify');
     }
