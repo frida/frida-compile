@@ -199,8 +199,7 @@ function compile(entrypoint, cache, options) {
 
     if (options.target !== 'V8') {
       b.transform('babelify', {
-        sourceMapsAbsolute: !!options.useAbsolutePaths,
-        presets: ['es2015']
+        sourceMapsAbsolute: !!options.useAbsolutePaths
       });
     }
 
