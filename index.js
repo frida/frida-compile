@@ -274,9 +274,7 @@ function getSystemSession() {
         throw new Error('Please `npm install frida` for bytecode compilation support');
       }
 
-      const systemSession = yield frida.attach(0);
-      yield systemSession.disableJit();
-      return systemSession;
+      return yield frida.attach(0);
     });
   }
 
