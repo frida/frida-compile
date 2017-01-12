@@ -146,7 +146,7 @@ function compile(entrypoint, cache, options) {
     const inputs = new Set();
 
     const b = browserify(entrypoint, {
-      basedir: (path.extname(entrypoint) === '.js') ? path.dirname(entrypoint) : entrypoint,
+      basedir: process.cwd(),
       extensions: ['.js', '.json', '.cy'],
       builtins: fridaBuiltins,
       ignoreTransform: !options.babelify ? ['babelify'] : [],
