@@ -310,6 +310,7 @@ function trimSourceMap(molder) {
 }
 
 module.exports = {
+  compile: compile,
   build: co.wrap(build),
   watch: watch
 };
