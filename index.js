@@ -1,5 +1,6 @@
 'use strict';
 
+const babelify = require('babelify');
 const browserify = require('browserify');
 const chokidar = require('chokidar');
 const co = require('co');
@@ -199,9 +200,9 @@ function compile(entrypoint, cache, options) {
     });
 
     if (options.babelify) {
-      b.transform('babelify', {
+      b.transform(babelify.configure({
         sourceMapsAbsolute: !!options.useAbsolutePaths
-      });
+      }));
     }
 
     if (options.compress) {
