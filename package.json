@@ -32,6 +32,8 @@
     "mold-source-map": "^0.4.0",
     "node-notifier": "^5.1.2",
     "through2": "^2.0.1",
+    "tsify": "^3.0.1",
+    "typescript": "^2.3.2",
     "uglifyify": "^3.0.4"
   },
   "scripts": {

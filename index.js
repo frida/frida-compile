@@ -12,6 +12,7 @@ const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
+const tsify = require('tsify');
 
 let getSystemSessionPromise = null;
 
@@ -148,11 +149,16 @@ function compile(entrypoint, cache, options) {
 
     const b = browserify(entrypoint, {
       basedir: process.cwd(),
-      extensions: ['.js', '.json', '.cy'],
+      extensions: ['.js', '.json', '.cy', '.ts'],
       builtins: fridaBuiltins,
       ignoreTransform: !options.babelify ? ['babelify'] : [],
       cache: cache,
       debug: true
+    })
+    .plugin(tsify, {
+      module: 'commonjs',
+      moduleResolution: 'node',
+      sourceMap: true
     })
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
