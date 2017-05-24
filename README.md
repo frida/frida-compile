@@ -12,4 +12,5 @@ $ frida-compile agent -o agent.js
 
 ```bash
 $ npm install frida-compile
+$ npm link
 ```
