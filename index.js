@@ -156,9 +156,10 @@ function compile(entrypoint, cache, options) {
       debug: true
     })
     .plugin(tsify, {
-      module: 'commonjs',
+      target: 'es5',
+      module: 'CommonJS',
       moduleResolution: 'node',
-      sourceMap: true
+      lib: ['es5'],
     })
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
