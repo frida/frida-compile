@@ -148,7 +148,7 @@ function compile(entrypoint, cache, options) {
     const inputs = new Set();
 
     const localTypesDir = path.join(path.resolve(path.dirname(entrypoint)), 'node_modules', '@types');
-    const gumTypesDir = path.join(path.dirname(require.resolve('.')), 'node_modules', 'frida-gum-types');
+    const gumTypesDir = path.dirname(require.resolve('frida-gum-types'));
 
     const b = browserify(entrypoint, {
       basedir: process.cwd(),
