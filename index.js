@@ -147,6 +147,9 @@ function compile(entrypoint, cache, options) {
   return new Promise(function (resolve, reject) {
     const inputs = new Set();
 
+    const localTypesDir = path.join(path.resolve(path.dirname(entrypoint)), 'node_modules', '@types');
+    const gumTypesDir = path.join(path.dirname(require.resolve('.')), 'node_modules', 'frida-gum-types');
+
     const b = browserify(entrypoint, {
       basedir: process.cwd(),
       extensions: ['.js', '.json', '.cy', '.ts'],
@@ -156,6 +159,7 @@ function compile(entrypoint, cache, options) {
       debug: true
     })
     .plugin(tsify, {
+      typeRoots: [gumTypesDir, localTypesDir],
       target: 'es5',
       module: 'CommonJS',
       moduleResolution: 'node',
