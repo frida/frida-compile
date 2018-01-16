@@ -149,14 +149,13 @@ function compile(entrypoint, cache, options) {
 
     const localTypesDir = path.join(path.resolve(path.dirname(entrypoint)), 'node_modules', '@types');
     const gumTypesDir = path.dirname(require.resolve('frida-gum-types'));
-
     const b = browserify(entrypoint, {
       basedir: process.cwd(),
       extensions: ['.js', '.json', '.cy', '.ts'],
       builtins: fridaBuiltins,
       ignoreTransform: !options.babelify ? ['babelify'] : [],
       cache: cache,
-      debug: true
+      debug: options.sourcemap
     })
     .plugin(tsify, {
       typeRoots: [gumTypesDir, localTypesDir],
@@ -317,6 +316,8 @@ function writeFile(file, data, options) {
 
 function trimSourceMap(molder) {
   var map = molder.sourcemap;
+  if (map === undefined)
+    return '';
   map.setProperty('sourcesContent', undefined);
   return map.toComment();
 }
