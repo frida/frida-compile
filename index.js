@@ -76,7 +76,7 @@ function watch(inputPath, outputPath, options) {
       } catch (e) {
         events.emit('error', e);
 
-        updateWatchedFiles(e.inputs);
+        addWatchedFiles(e.inputs);
       }
 
       const changedFiles = yield waitForChange();
@@ -106,6 +106,10 @@ function watch(inputPath, outputPath, options) {
 
     watcher.unwatch(removed);
     watcher.add(added);
+  }
+
+  function addWatchedFiles(files) {
+    updateWatchedFiles(new Set([...watched, ...files]));
   }
 
   function waitForChange() {
