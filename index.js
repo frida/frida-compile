@@ -162,7 +162,7 @@ function compile(entrypoint, cache, options) {
       target: 'es5',
       module: 'CommonJS',
       moduleResolution: 'node',
-      lib: ['es5'],
+      lib: ['es5', 'es2015.promise'],
     })
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
