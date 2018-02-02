@@ -145,7 +145,7 @@ function watch(inputPath, outputPath, options) {
 
 function compile(entrypoint, cache, options) {
   return new Promise(function (resolve, reject) {
-    const inputs = new Set();
+    const inputs = new Set([ entrypoint ]);
 
     const localTypesDir = path.join(path.resolve(path.dirname(entrypoint)), 'node_modules', '@types');
     const gumTypesDir = path.dirname(require.resolve('frida-gum-types'));
