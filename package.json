@@ -25,7 +25,7 @@
     "extend": "^3.0.0",
     "frida-any-promise": "^1.0.2",
     "frida-buffer": "^1.0.3",
-    "frida-gum-types": "^1.0.4",
+    "frida-gum-types": "^1.0.5",
     "frida-http": "^1.0.2",
     "frida-net": "^1.2.5",
     "frida-process": "^1.0.2",
