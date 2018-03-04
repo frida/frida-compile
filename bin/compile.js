@@ -35,10 +35,6 @@ const options = {
   useAbsolutePaths: !!program.useAbsolutePaths
 };
 
-if (inputPath.endsWith('.ts')) {
-  options.babelify = false;
-}
-
 if (!watch) {
   compiler.build(inputPath, outputPath, options)
   .catch(error => {
