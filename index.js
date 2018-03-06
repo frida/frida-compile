@@ -163,7 +163,7 @@ function compile(entrypoint, cache, options) {
       debug: options.sourcemap
     })
     .plugin(tsify, {
-      typeRoots: [gumTypesDir, localTypesDir],
+      [`${options.typeroots ? '' : '_'}typeRoots`]: [gumTypesDir, localTypesDir],
       target: 'es5',
       module: 'CommonJS',
       moduleResolution: 'node',
