@@ -250,7 +250,7 @@ function compile(entrypoint, cache, options) {
       e.inputs = inputs;
       reject(e);
     })
-    .pipe(mold.transform(trimSourceMap))
+    .pipe(options.sourcemap ? mold.transform(trimSourceMap) : through.obj())
     .pipe(concat(function (buf) {
       if (options.bytecode) {
         compileToBytecode(buf.toString())
