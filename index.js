@@ -163,8 +163,7 @@ function compile(entrypoint, cache, options) {
       debug: options.sourcemap
     })
     .plugin(tsify, {
-      [`${options.typeroots ? '' : '_'}typeRoots`]: [gumTypesDir, localTypesDir],
-      target: 'es5',
+      [`${options.typeroots ? '' : '_'}typeRoots`]: [gumTypesDir, localTypesDir]
     })
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
