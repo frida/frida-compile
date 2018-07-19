@@ -16,7 +16,6 @@ program
     .option('-b, --bytecode', 'output bytecode')
     .option('-x, --no-babelify', 'skip Babel transforms')
     .option('-S, --no-sourcemap', 'omit sourcemap')
-    .option('-T, --no-typeroots', 'omit internal type roots')
     .option('-c, --compress', 'compress using UglifyJS2')
     .option('-a, --use-absolute-paths', 'use absolute source paths')
     .parse(process.argv);
@@ -32,7 +31,6 @@ const options = {
   bytecode: !!program.bytecode,
   babelify: program.babelify,
   sourcemap: program.sourcemap,
-  typeroots: program.typeroots,
   compress: !!program.compress,
   useAbsolutePaths: !!program.useAbsolutePaths
 };

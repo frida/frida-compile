@@ -152,8 +152,6 @@ function compile(entrypoint, cache, options) {
   return new Promise(function (resolve, reject) {
     const inputs = new Set([ entrypoint ]);
 
-    const localTypesDir = path.join(path.resolve(path.dirname(entrypoint)), 'node_modules', '@types');
-    const gumTypesDir = path.dirname(require.resolve('frida-gum-types'));
     const b = browserify(entrypoint, {
       basedir: process.cwd(),
       extensions: ['.js', '.json', '.cy', '.ts'],
@@ -162,13 +160,7 @@ function compile(entrypoint, cache, options) {
       cache: cache,
       debug: options.sourcemap
     })
-    .plugin(tsify, {
-      [`${options.typeroots ? '' : '_'}typeRoots`]: [gumTypesDir, localTypesDir],
-      target: 'es5',
-      module: 'CommonJS',
-      moduleResolution: 'node',
-      lib: ['es5', 'es2015.promise'],
-    })
+    .plugin(tsify)
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
     })
