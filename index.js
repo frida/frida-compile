@@ -10,6 +10,7 @@ const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
+const tsify = require('tsify');
 const util = require('util');
 
 const mkdirp = util.promisify(_mkdirp);
@@ -163,6 +164,7 @@ function compile(entrypoint, cache, options) {
       cache: cache,
       debug: options.sourcemap
     })
+    .plugin(tsify)
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
     })
