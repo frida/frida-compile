@@ -3,18 +3,17 @@
 const babelify = require('babelify');
 const browserify = require('browserify');
 const chokidar = require('chokidar');
-const co = require('co');
 const concat = require('concat-stream');
 const EventEmitter = require('events');
-const extend = require('extend');
 const fs = require('fs');
 const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
-const tsify = require('tsify');
+const util = require('util');
 
-let getSystemSessionPromise = null;
+const mkdirp = util.promisify(_mkdirp);
+const writeFile = util.promisify(fs.writeFile);
 
 const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   '_process': require.resolve('frida-process'),
@@ -26,13 +25,15 @@ const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   'any-promise': require.resolve('frida-any-promise'),
 });
 
-function* build(inputPath, outputPath, options) {
+let getSystemSessionRequest = null;
+
+async function build(inputPath, outputPath, options) {
   options = options || {};
 
-  const result = yield compile(inputPath, {}, options);
+  const result = await compile(inputPath, {}, options);
 
-  yield mkdirp(path.dirname(outputPath));
-  yield writeFile(outputPath, result.bundle);
+  await mkdirp(path.dirname(outputPath));
+  await writeFile(outputPath, result.bundle);
 
   return result;
 }
@@ -50,21 +51,21 @@ function watch(inputPath, outputPath, options) {
 
   options = options || {};
 
-  co(function* () {
+  async function run() {
     watcher.on('change', onChange);
     watcher.on('unlink', path => {
       watched.delete(path);
       onChange(path);
     });
 
-    yield mkdirp(path.dirname(outputPath));
+    await mkdirp(path.dirname(outputPath));
 
     while (true) {
       try {
         const startFiles = new Set(Object.keys(cache));
         const startTime = Date.now();
 
-        const result = yield compile(inputPath, cache, options);
+        const result = await compile(inputPath, cache, options);
 
         events.emit('compile', {
           files: Object.keys(cache).filter(file => !startFiles.has(file)),
@@ -73,17 +74,19 @@ function watch(inputPath, outputPath, options) {
 
         updateWatchedFiles(result.inputs);
 
-        yield writeFile(outputPath, result.bundle);
+        await writeFile(outputPath, result.bundle);
       } catch (e) {
         events.emit('error', e);
 
         addWatchedFiles(e.inputs);
       }
 
-      const changedFiles = yield waitForChange();
+      const changedFiles = await waitForChange();
       changedFiles.forEach(file => delete cache[file]);
     }
-  })
+  };
+
+  run()
   .catch(error => {
     events.emit('error', error);
   });
@@ -160,7 +163,6 @@ function compile(entrypoint, cache, options) {
       cache: cache,
       debug: options.sourcemap
     })
-    .plugin(tsify)
     .on('package', function (pkg) {
       inputs.add(path.join(pkg.__dirname, 'package.json'));
     })
@@ -208,6 +210,7 @@ function compile(entrypoint, cache, options) {
 
     if (options.babelify) {
       b.transform(babelify.configure({
+        extensions: ['.js', '.cy', '.ts'],
         sourceMapsAbsolute: !!options.useAbsolutePaths
       }));
     }
@@ -230,7 +233,7 @@ function compile(entrypoint, cache, options) {
       inputs.add(file);
       cache[file] = {
           source: row.source,
-          deps: extend({}, row.deps)
+          deps: Object.assign({}, row.deps)
       };
       this.push(row);
       next();
@@ -263,52 +266,28 @@ function compile(entrypoint, cache, options) {
   });
 }
 
-function compileToBytecode(source) {
-  return co(function* () {
-    const systemSession = yield getSystemSession();
-    const bytecode = yield systemSession.compileScript(source);
-    return bytecode;
-  });
+async function compileToBytecode(source) {
+  const systemSession = await getSystemSession();
+  const bytecode = await systemSession.compileScript(source);
+  return bytecode;
 }
 
 function getSystemSession() {
-  if (getSystemSessionPromise === null) {
-    getSystemSessionPromise = co(function* () {
-      let frida;
+  if (getSystemSessionRequest === null)
+    getSystemSessionRequest = attachToSystemSession();
+  return getSystemSessionRequest;
+}
 
-      try {
-        frida = require('frida');
-      } catch (e) {
-        throw new Error('Please `npm install frida` for bytecode compilation support');
-      }
+async function attachToSystemSession() {
+  let frida;
 
-      return yield frida.attach(0);
-    });
+  try {
+    frida = require('frida');
+  } catch (e) {
+    throw new Error('Please `npm install frida` for bytecode compilation support');
   }
 
-  return getSystemSessionPromise;
-}
-
-function mkdirp(dir, options) {
-  return new Promise(function (resolve, reject) {
-    _mkdirp(dir, options, err => {
-      if (!err)
-        resolve();
-      else
-        reject(err);
-    });
-  });
-}
-
-function writeFile(file, data, options) {
-  return new Promise(function (resolve, reject) {
-    fs.writeFile(file, data, options, err => {
-      if (!err)
-        resolve();
-      else
-        reject(err);
-    });
-  });
+  return await frida.attach(0);
 }
 
 function trimSourceMap(molder) {
@@ -320,7 +299,7 @@ function trimSourceMap(molder) {
 }
 
 module.exports = {
-  compile: compile,
-  build: co.wrap(build),
-  watch: watch
+  compile,
+  build,
+  watch
 };
