@@ -14,8 +14,8 @@
   },
   "main": "index.js",
   "files": [
-    "index.js",
-    "bin/compile.js"
+    "/index.js",
+    "/bin/compile.js"
   ],
   "bin": {
     "frida-compile": "./bin/compile.js"
