@@ -227,7 +227,7 @@ function compile(entrypoint, cache, options) {
           beautify: true,
           indent_level: 2
         }
-      }, 'uglifyify');
+      }, '@frida/uglifyify');
     }
 
     b.pipeline.get('deps').push(through.obj(function (row, enc, next) {
