@@ -215,7 +215,19 @@ function compile(entrypoint, cache, options) {
       b.transform(babelify.configure({
         extensions: ['.js', '.cy', '.ts'],
         sourceMapsAbsolute: !!options.useAbsolutePaths
-      }));
+      }), {
+        global: true,
+        ignore: [/\/node_modules\/(@babel|core-js|core-js-pure)\//],
+        presets: ['@babel/preset-env'],
+        plugins: [
+          [
+            '@babel/plugin-transform-runtime',
+            {
+              corejs: 2
+            }
+          ]
+        ]
+      });
     }
 
     if (options.compress) {
