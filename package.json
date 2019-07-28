@@ -15,7 +15,8 @@
   "main": "index.js",
   "files": [
     "/index.js",
-    "/bin/compile.js"
+    "/bin/compile.js",
+    "/lib/**/*.js"
   ],
   "bin": {
     "frida-compile": "./bin/compile.js"
