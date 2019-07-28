@@ -24,6 +24,7 @@ const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   'http': require.resolve('frida-http'),
   'bignum': require.resolve('bignumber.js'),
   'any-promise': require.resolve('frida-any-promise'),
+  'supports-color': require.resolve('./lib/supports-color'),
 });
 
 let getSystemSessionRequest = null;
