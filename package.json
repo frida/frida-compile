@@ -21,6 +21,10 @@
     "frida-compile": "./bin/compile.js"
   },
   "dependencies": {
+    "@babel/core": "^7.5.5",
+    "@babel/plugin-transform-runtime": "^7.5.5",
+    "@babel/preset-env": "^7.5.5",
+    "@babel/runtime-corejs2": "^7.5.5",
     "@frida/uglifyify": "^6.0.1",
     "babelify": "^10.0.0",
     "bignumber.js": "^9.0.0",
