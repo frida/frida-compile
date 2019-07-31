@@ -160,6 +160,9 @@ function compile(entrypoint, cache, options) {
     const b = browserify(entrypoint, {
       basedir: process.cwd(),
       extensions: ['.js', '.json', '.cy', '.ts'],
+      paths: [
+        path.dirname(path.dirname(path.dirname(require.resolve('@babel/runtime-corejs2/package.json')))),
+      ],
       builtins: fridaBuiltins,
       ignoreTransform: !options.babelify ? ['babelify'] : [],
       cache: cache,
