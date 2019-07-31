@@ -220,7 +220,7 @@ function compile(entrypoint, cache, options) {
         sourceMapsAbsolute: !!options.useAbsolutePaths
       }), {
         global: true,
-        ignore: [/\/node_modules\/(@babel|core-js|core-js-pure)\//],
+        ignore: [/[\/\\]node_modules[\/\\](@babel|core-js|core-js-pure)[\/\\]/],
         presets: ['@babel/preset-env'],
         plugins: [
           [
