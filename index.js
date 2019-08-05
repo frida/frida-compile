@@ -4,6 +4,7 @@ const babelify = require('babelify');
 const browserify = require('browserify');
 const chokidar = require('chokidar');
 const concat = require('concat-stream');
+const esmify = require('esmify');
 const EventEmitter = require('events');
 const fs = require('fs');
 const _mkdirp = require('mkdirp');
@@ -231,6 +232,8 @@ function compile(entrypoint, cache, options) {
           ]
         ]
       });
+    } else {
+      b.plugin(esmify)
     }
 
     if (options.compress) {
