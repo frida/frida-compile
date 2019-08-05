@@ -11,6 +11,7 @@ const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
 const tsify = require('tsify');
+const esmify = require('esmify');
 const util = require('util');
 
 const mkdirp = util.promisify(_mkdirp);
@@ -231,6 +232,8 @@ function compile(entrypoint, cache, options) {
           ]
         ]
       });
+    } else {
+      b.plugin(esmify)
     }
 
     if (options.compress) {
