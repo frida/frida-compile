@@ -4,6 +4,7 @@ const babelify = require('babelify');
 const browserify = require('browserify');
 const chokidar = require('chokidar');
 const concat = require('concat-stream');
+const esmify = require('esmify');
 const EventEmitter = require('events');
 const fs = require('fs');
 const _mkdirp = require('mkdirp');
@@ -11,7 +12,6 @@ const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
 const tsify = require('tsify');
-const esmify = require('esmify');
 const util = require('util');
 
 const mkdirp = util.promisify(_mkdirp);
