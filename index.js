@@ -22,7 +22,9 @@ const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   'buffer': require.resolve('frida-buffer'),
   'fs': require.resolve('frida-fs'),
   'http': require.resolve('frida-http'),
+  'iconv': require.resolve('./lib/iconv'),
   'net': require.resolve('frida-net'),
+  'node-icu-charset-detector': require.resolve('./lib/node-icu-charset-detector'),
   'supports-color': require.resolve('./lib/supports-color'),
 });
 
