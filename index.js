@@ -1,5 +1,3 @@
-'use strict';
-
 const babelify = require('babelify');
 const browserify = require('browserify');
 const chokidar = require('chokidar');

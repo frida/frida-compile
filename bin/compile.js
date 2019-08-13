@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-'use strict';
-
 const chalk = require('chalk');
 const compiler = require('..');
 const notifier = require('node-notifier');
