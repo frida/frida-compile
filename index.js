@@ -17,12 +17,12 @@ const writeFile = util.promisify(fs.writeFile);
 
 const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
   '_process': require.resolve('frida-process'),
+  'any-promise': require.resolve('frida-any-promise'),
+  'bignum': require.resolve('bignumber.js'),
   'buffer': require.resolve('frida-buffer'),
   'fs': require.resolve('frida-fs'),
-  'net': require.resolve('frida-net'),
   'http': require.resolve('frida-http'),
-  'bignum': require.resolve('bignumber.js'),
-  'any-promise': require.resolve('frida-any-promise'),
+  'net': require.resolve('frida-net'),
   'supports-color': require.resolve('./lib/supports-color'),
 });
 
