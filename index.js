@@ -12,6 +12,7 @@ const through = require('through2');
 const tsify = require('tsify');
 const util = require('util');
 
+const access = util.promisify(fs.access);
 const mkdirp = util.promisify(_mkdirp);
 const writeFile = util.promisify(fs.writeFile);
 
@@ -33,7 +34,8 @@ let getSystemSessionRequest = null;
 async function build(inputPath, outputPath, options) {
   options = options || {};
 
-  const result = await compile(inputPath, {}, options);
+  const compile = makeCompiler(inputPath, {}, options);
+  const result = await compile();
 
   await mkdirp(path.dirname(outputPath));
   await writeFile(outputPath, result.bundle);
@@ -42,10 +44,18 @@ async function build(inputPath, outputPath, options) {
 }
 
 function watch(inputPath, outputPath, options) {
-  const events = new EventEmitter();
   const cache = {};
-  const watcher = chokidar.watch([], { persistent: true });
-  let watched = new Set();
+  const compile = makeCompiler(inputPath, cache, options);
+  const events = new EventEmitter();
+  let canonicalizeFilename;
+  let absoluteOutputPath;
+  const watcher = chokidar.watch([], {
+    persistent: true,
+    ignoreInitial: true,
+    depth: 0,
+  });
+  let watchedFiles = new Map();
+  let watchedDirs = new Map();
   const onChangeCallbacks = [];
   let changed = new Set();
   let lastChange = null;
@@ -55,25 +65,39 @@ function watch(inputPath, outputPath, options) {
   options = options || {};
 
   async function run() {
+    try {
+      await access(path.join(__dirname, path.basename(__filename).toUpperCase()), fs.constants.OK);
+      canonicalizeFilename = canonicalizeCaseInsensitiveFilename;
+    } catch (e) {
+      canonicalizeFilename = canonicalizeCaseSensitiveFilename;
+    }
+
+    absoluteOutputPath = canonicalizeFilename(path.resolve(outputPath));
+
+    await mkdirp(path.dirname(outputPath));
+
     watcher.on('change', onChange);
     watcher.on('unlink', path => {
-      watched.delete(path);
+      watchedFiles.delete(path);
       onChange(path);
     });
 
-    await mkdirp(path.dirname(outputPath));
+    let changedFiles = new Set();
 
     while (true) {
       try {
         const startFiles = new Set(Object.keys(cache));
         const startTime = Date.now();
 
-        const result = await compile(inputPath, cache, options);
+        const result = await compile();
 
-        events.emit('compile', {
-          files: Object.keys(cache).filter(file => !startFiles.has(file)),
-          duration: Date.now() - startTime
-        });
+        const duration = Date.now() - startTime;
+        const files = Array.from(new Set(
+            Object.keys(cache)
+            .filter(file => !startFiles.has(file))
+            .concat(Array.from(changedFiles))));
+
+        events.emit('compile', { files, duration });
 
         updateWatchedFiles(result.inputs);
 
@@ -84,39 +108,44 @@ function watch(inputPath, outputPath, options) {
         addWatchedFiles(e.inputs);
       }
 
-      const changedFiles = await waitForChange();
-      changedFiles.forEach(file => delete cache[file]);
+      changedFiles = await waitForChange();
+      const cachedFiles = Object.keys(cache)
+          .reduce((result, name) => result.set(canonicalizeFilename(name), name), new Map());
+      changedFiles.forEach(file => delete cache[cachedFiles.get(file)]);
     }
   };
 
   run()
-  .catch(error => {
-    events.emit('error', error);
-  });
+      .catch(error => {
+        events.emit('error', error);
+      });
 
   return events;
 
   function updateWatchedFiles(current) {
-    const added = [];
-    for (let file of current) {
-      if (!watched.has(file))
-        added.push(file);
-    }
+    const files = Array.from(current)
+        .reduce((result, name) => result.set(canonicalizeFilename(name), name), new Map());
+    files.delete(absoluteOutputPath);
 
-    const removed = [];
-    for (let file of watched) {
-      if (!current.has(file))
-        removed.push(file);
-    }
+    const dirs = Array.from(new Set(Array.from(files.values()).map(path.dirname)))
+        .reduce((result, name) => result.set(canonicalizeFilename(name), name), new Map());
 
-    watched = current;
+    const added = Array.from(dirs.keys())
+        .filter(id => !watchedDirs.has(id))
+        .map(id => dirs.get(id));
+    const removed = Array.from(watchedDirs.keys())
+        .filter(id => !dirs.has(id))
+        .map(id => watchedDirs.get(id));
+
+    watchedFiles = files;
+    watchedDirs = dirs;
 
     watcher.unwatch(removed);
     watcher.add(added);
   }
 
   function addWatchedFiles(files) {
-    updateWatchedFiles(new Set([...watched, ...files]));
+    updateWatchedFiles(new Set([...watchedFiles.values(), ...files]));
   }
 
   function waitForChange() {
@@ -131,8 +160,12 @@ function watch(inputPath, outputPath, options) {
     });
   }
 
-  function onChange(path) {
-    changed.add(path);
+  function onChange(filename) {
+    const id = canonicalizeFilename(filename);
+    if (!watchedFiles.has(id))
+      return;
+
+    changed.add(id);
 
     lastChange = Date.now();
     if (timer === null)
@@ -152,139 +185,151 @@ function watch(inputPath, outputPath, options) {
       }
     }
   }
+
+  function canonicalizeCaseSensitiveFilename(name) {
+    return name;
+  }
+
+  function canonicalizeCaseInsensitiveFilename(name) {
+    return name.toLowerCase();
+  }
 }
 
-function compile(entrypoint, cache, options) {
-  return new Promise(function (resolve, reject) {
-    const inputs = new Set([ entrypoint ]);
+function makeCompiler(entrypoint, cache, options) {
+  const inputs = new Set([ entrypoint ]);
 
-    const b = browserify(entrypoint, {
-      basedir: process.cwd(),
-      extensions: ['.js', '.json', '.cy', '.ts'],
-      paths: [
-        path.dirname(path.dirname(path.dirname(require.resolve('@babel/runtime-corejs2/package.json')))),
-      ],
-      builtins: fridaBuiltins,
-      ignoreTransform: !options.babelify ? ['babelify'] : [],
-      cache: cache,
-      debug: options.sourcemap
-    })
-    .plugin(tsify)
-    .on('package', function (pkg) {
-      inputs.add(path.join(pkg.__dirname, 'package.json'));
-    })
-    .on('file', function (file) {
-      inputs.add(file);
-    })
-    .transform(function (file) {
-      const isCylang = file.lastIndexOf('.cy') === file.length - 3;
-      if (!isCylang)
-        return through();
+  const b = browserify(entrypoint, {
+    basedir: process.cwd(),
+    extensions: ['.js', '.json', '.cy', '.ts'],
+    paths: [
+      path.dirname(path.dirname(path.dirname(require.resolve('@babel/runtime-corejs2/package.json')))),
+    ],
+    builtins: fridaBuiltins,
+    ignoreTransform: !options.babelify ? ['babelify'] : [],
+    cache: cache,
+    debug: options.sourcemap
+  })
+  .plugin(tsify, {
+    forceConsistentCasingInFileNames: true
+  })
+  .on('package', pkg => {
+    inputs.add(path.join(pkg.__dirname, 'package.json'));
+  })
+  .on('file', file => {
+    inputs.add(file);
+  })
+  .transform(file => {
+    const isCylang = file.lastIndexOf('.cy') === file.length - 3;
+    if (!isCylang)
+      return through();
 
-      const chunks = [];
-      let size = 0;
-      return through(
-        function (chunk, enc, callback) {
-          chunks.push(chunk);
-          size += chunk.length;
-          callback();
-        },
-        function (callback) {
-          const code = Buffer.concat(chunks, size).toString();
+    const chunks = [];
+    let size = 0;
+    return through(
+      function (chunk, enc, callback) {
+        chunks.push(chunk);
+        size += chunk.length;
+        callback();
+      },
+      function (callback) {
+        const code = Buffer.concat(chunks, size).toString();
+        try {
+          let cylang;
+
           try {
-            let cylang;
-
-            try {
-              cylang = require('cylang');
-            } catch (e) {
-              throw new Error('Please `npm install cylang` for .cy compilation support');
-            }
-
-            const js = cylang.compile(code, {
-              strict: false,
-              pretty: true
-            });
-
-            this.push(new Buffer(js));
-
-            callback();
+            cylang = require('cylang');
           } catch (e) {
-            callback(e);
+            throw new Error('Please `npm install cylang` for .cy compilation support');
           }
-        }
-      );
-    });
 
-    if (options.babelify) {
-      b.transform(babelify.configure({
-        extensions: ['.js', '.cy', '.ts'],
-        sourceMapsAbsolute: !!options.useAbsolutePaths
-      }), {
-        global: true,
-        ignore: [/[\/\\]node_modules[\/\\](@babel|core-js|core-js-pure|lodash)([\/\\]|$)/],
-        presets: ['@babel/preset-env'],
-        plugins: [
-          [
-            '@babel/plugin-transform-runtime',
-            {
-              corejs: 2
-            }
-          ]
+          const js = cylang.compile(code, {
+            strict: false,
+            pretty: true
+          });
+
+          this.push(new Buffer(js));
+
+          callback();
+        } catch (e) {
+          callback(e);
+        }
+      }
+    );
+  });
+
+  if (options.babelify) {
+    b.transform(babelify.configure({
+      extensions: ['.js', '.cy', '.ts'],
+      sourceMapsAbsolute: !!options.useAbsolutePaths
+    }), {
+      global: true,
+      ignore: [/[\/\\]node_modules[\/\\](@babel|core-js|core-js-pure|lodash)([\/\\]|$)/],
+      presets: ['@babel/preset-env'],
+      plugins: [
+        [
+          '@babel/plugin-transform-runtime',
+          {
+            corejs: 2
+          }
         ]
-      });
-    } else {
-      b.plugin(esmify)
-    }
+      ]
+    });
+  } else {
+    b.plugin(esmify)
+  }
 
-    if (options.compress) {
-      b.transform({
-        global: true,
-        mangle: {
-          toplevel: true
-        },
-        output: {
-          beautify: true,
-          indent_level: 2
-        }
-      }, '@frida/uglifyify');
-    }
+  if (options.compress) {
+    b.transform({
+      global: true,
+      mangle: {
+        toplevel: true
+      },
+      output: {
+        beautify: true,
+        indent_level: 2
+      }
+    }, '@frida/uglifyify');
+  }
 
-    b.pipeline.get('deps').push(through.obj(function (row, enc, next) {
-      const file = row.expose ? b._expose[row.id] : row.file;
-      inputs.add(file);
-      cache[file] = {
-          source: row.source,
-          deps: Object.assign({}, row.deps)
-      };
-      this.push(row);
-      next();
-    }));
+  b.pipeline.get('deps').push(through.obj(function (row, enc, next) {
+    const file = row.expose ? b._expose[row.id] : row.file;
+    inputs.add(file);
+    cache[file] = {
+      source: row.source,
+      deps: Object.assign({}, row.deps)
+    };
+    this.push(row);
+    next();
+  }));
 
-    b
-    .bundle()
-    .on('error', function (e) {
-      e.inputs = inputs;
-      reject(e);
-    })
-    .pipe(options.sourcemap ? mold.transform(trimSourceMap) : through.obj())
-    .pipe(concat(function (buf) {
-      if (options.bytecode) {
-        compileToBytecode(buf.toString())
-        .then(bytecode => {
+  return function () {
+    return new Promise((resolve, reject) => {
+      b
+      .bundle()
+      .on('error', e => {
+        e.inputs = inputs;
+        reject(e);
+      })
+      .pipe(options.sourcemap ? mold.transform(trimSourceMap) : through.obj())
+      .pipe(concat(buf => {
+        if (options.bytecode) {
+          compileToBytecode(buf.toString())
+          .then(bytecode => {
+            resolve({
+              bundle: bytecode,
+              inputs: inputs
+            });
+          })
+          .catch(reject);
+        } else {
           resolve({
-            bundle: bytecode,
+            bundle: buf,
             inputs: inputs
           });
-        })
-        .catch(reject);
-      } else {
-        resolve({
-          bundle: buf,
-          inputs: inputs
-        });
-      }
-    }));
-  });
+        }
+      }));
+    });
+  };
 }
 
 async function compileToBytecode(source) {
@@ -320,7 +365,7 @@ function trimSourceMap(molder) {
 }
 
 module.exports = {
-  compile,
+  makeCompiler,
   build,
   watch
 };
