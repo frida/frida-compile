@@ -13,6 +13,7 @@ program
     .option('-w, --watch', 'watch for changes and recompile')
     .option('-b, --bytecode', 'output bytecode')
     .option('-x, --no-babelify', 'skip Babel transforms')
+    .option('-L, --loose', 'enable loose Babel transformations')
     .option('-S, --no-sourcemap', 'omit sourcemap')
     .option('-c, --compress', 'compress using UglifyJS2')
     .option('-a, --use-absolute-paths', 'use absolute source paths')
@@ -28,6 +29,7 @@ const options = {
   target: program.target,
   bytecode: !!program.bytecode,
   babelify: program.babelify,
+  loose: program.loose,
   sourcemap: program.sourcemap,
   compress: !!program.compress,
   useAbsolutePaths: !!program.useAbsolutePaths

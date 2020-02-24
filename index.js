@@ -264,7 +264,14 @@ function makeCompiler(entrypoint, cache, options) {
     }), {
       global: true,
       ignore: [/[\/\\]node_modules[\/\\](@babel|core-js|core-js-pure|lodash)([\/\\]|$)/],
-      presets: ['@babel/preset-env'],
+      presets: [
+        [
+          '@babel/preset-env',
+          {
+            loose: options.loose
+          }
+        ],
+      ],
       plugins: [
         [
           '@babel/plugin-transform-runtime',
