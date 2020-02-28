@@ -281,7 +281,7 @@ function makeCompiler(entrypoint, cache, options) {
         ]
       ]
     });
-  } else {
+  } else if (options.esmify) {
     b.plugin(esmify)
   }
 
