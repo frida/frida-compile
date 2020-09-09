@@ -5,7 +5,6 @@ const concat = require('concat-stream');
 const esmify = require('esmify');
 const EventEmitter = require('events');
 const fs = require('fs');
-const _mkdirp = require('mkdirp');
 const mold = require('mold-source-map');
 const path = require('path');
 const through = require('through2');
@@ -13,7 +12,7 @@ const tsify = require('tsify');
 const util = require('util');
 
 const access = util.promisify(fs.access);
-const mkdirp = util.promisify(_mkdirp);
+const mkdir = util.promisify(fs.mkdir);
 const writeFile = util.promisify(fs.writeFile);
 
 const fridaBuiltins = Object.assign({}, require('browserify/lib/builtins'), {
@@ -37,7 +36,7 @@ async function build(inputPath, outputPath, options) {
   const compile = makeCompiler(inputPath, {}, options);
   const result = await compile();
 
-  await mkdirp(path.dirname(outputPath));
+  await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, result.bundle);
 
   return result;
@@ -74,7 +73,7 @@ function watch(inputPath, outputPath, options) {
 
     absoluteOutputPath = canonicalizeFilename(path.resolve(outputPath));
 
-    await mkdirp(path.dirname(outputPath));
+    await mkdir(path.dirname(outputPath), { recursive: true });
 
     watcher.on('change', onChange);
     watcher.on('unlink', path => {

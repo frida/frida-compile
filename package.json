@@ -10,7 +10,7 @@
   ],
   "homepage": "https://www.frida.re",
   "engines": {
-    "node": ">=8.0.0"
+    "node": ">=10.12.0"
   },
   "main": "index.js",
   "files": [
@@ -30,9 +30,9 @@
     "babelify": "^10.0.0",
     "bignumber.js": "^9.0.0",
     "browserify": "^16.2.3",
-    "chalk": "^2.4.1",
+    "chalk": "^4.1.0",
     "chokidar": "^3.0.0",
-    "commander": "^3.0.0",
+    "commander": "^6.1.0",
     "concat-stream": "^2.0.0",
     "esmify": "^2.1.1",
     "frida-any-promise": "^2.0.0",
@@ -41,12 +41,11 @@
     "frida-http": "^3.0.0",
     "frida-net": "^3.0.1",
     "frida-process": "^3.0.1",
-    "mkdirp": "^0.5.1",
     "mold-source-map": "^0.4.0",
-    "node-notifier": "^5.1.2",
-    "through2": "^3.0.1",
-    "tsify": "^4.0.0",
-    "typescript": "^3.5.1"
+    "node-notifier": "^8.0.0",
+    "through2": "^4.0.2",
+    "tsify": "^5.0.2",
+    "typescript": "^4.0.2"
   },
   "scripts": {
     "pretest": "jshint bin/*.js"
