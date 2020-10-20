@@ -12,9 +12,6 @@ program
     .option('-o, --output <file>', 'set output <file>')
     .option('-w, --watch', 'watch for changes and recompile')
     .option('-b, --bytecode', 'output bytecode')
-    .option('-x, --no-babelify', 'skip Babel transforms')
-    .option('-X, --no-esmify', 'used with -x to also skip esmify transforms')
-    .option('-L, --loose', 'enable loose Babel transformations')
     .option('-S, --no-sourcemap', 'omit sourcemap')
     .option('-c, --compress', 'compress using UglifyJS2')
     .option('-a, --use-absolute-paths', 'use absolute source paths')
@@ -29,9 +26,6 @@ const inputPath = require.resolve(path.resolve(process.cwd(), inputModule));
 const options = {
   target: program.target,
   bytecode: !!program.bytecode,
-  babelify: program.babelify,
-  esmify: program.esmify,
-  loose: program.loose,
   sourcemap: program.sourcemap,
   compress: !!program.compress,
   useAbsolutePaths: !!program.useAbsolutePaths

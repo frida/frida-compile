@@ -1,8 +1,6 @@
-const babelify = require('babelify');
 const browserify = require('browserify');
 const chokidar = require('chokidar');
 const concat = require('concat-stream');
-const esmify = require('esmify');
 const EventEmitter = require('events');
 const fs = require('fs');
 const mold = require('mold-source-map');
@@ -200,11 +198,7 @@ function makeCompiler(entrypoint, cache, options) {
   const b = browserify(entrypoint, {
     basedir: process.cwd(),
     extensions: ['.js', '.json', '.cy', '.ts'],
-    paths: [
-      path.dirname(path.dirname(path.dirname(require.resolve('@babel/runtime-corejs2/package.json')))),
-    ],
     builtins: fridaBuiltins,
-    ignoreTransform: !options.babelify ? ['babelify'] : [],
     cache: cache,
     debug: options.sourcemap
   })
@@ -255,34 +249,6 @@ function makeCompiler(entrypoint, cache, options) {
       }
     );
   });
-
-  if (options.babelify) {
-    b.transform(babelify.configure({
-      extensions: ['.js', '.cy', '.ts'],
-      sourceMapsAbsolute: !!options.useAbsolutePaths
-    }), {
-      global: true,
-      ignore: [/[\/\\]node_modules[\/\\](@babel|core-js|core-js-pure|lodash)([\/\\]|$)/],
-      presets: [
-        [
-          '@babel/preset-env',
-          {
-            loose: options.loose
-          }
-        ],
-      ],
-      plugins: [
-        [
-          '@babel/plugin-transform-runtime',
-          {
-            corejs: 2
-          }
-        ]
-      ]
-    });
-  } else if (options.esmify) {
-    b.plugin(esmify)
-  }
 
   if (options.compress) {
     b.transform({
