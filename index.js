@@ -203,7 +203,8 @@ function makeCompiler(entrypoint, cache, options) {
     debug: options.sourcemap
   })
   .plugin(tsify, {
-    forceConsistentCasingInFileNames: true
+    forceConsistentCasingInFileNames: true,
+    project: options.tsconfig
   })
   .on('package', pkg => {
     inputs.add(path.join(pkg.__dirname, 'package.json'));
