@@ -15,6 +15,7 @@ program
     .option('-S, --no-sourcemap', 'omit sourcemap')
     .option('-c, --compress', 'compress using UglifyJS2')
     .option('-a, --use-absolute-paths', 'use absolute source paths')
+    .option('-t, --tsconfig <file>', 'path to a tsconfig <file> to use when compiling TypeScript files')
     .parse(process.argv);
 
 const inputModule = program.args[0];
@@ -28,7 +29,8 @@ const options = {
   bytecode: !!program.bytecode,
   sourcemap: program.sourcemap,
   compress: !!program.compress,
-  useAbsolutePaths: !!program.useAbsolutePaths
+  useAbsolutePaths: !!program.useAbsolutePaths,
+  tsconfig: program.tsconfig
 };
 
 if (!watch) {
