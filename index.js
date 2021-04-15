@@ -200,7 +200,8 @@ function makeCompiler(entrypoint, cache, options) {
     extensions: ['.js', '.json', '.cy', '.ts'],
     builtins: fridaBuiltins,
     cache: cache,
-    debug: options.sourcemap
+    debug: options.sourcemap,
+    standalone: options.standalone
   })
   .plugin(tsify, {
     forceConsistentCasingInFileNames: true,

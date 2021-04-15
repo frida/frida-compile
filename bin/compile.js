@@ -16,6 +16,7 @@ program
     .option('-c, --compress', 'compress using UglifyJS2')
     .option('-a, --use-absolute-paths', 'use absolute source paths')
     .option('-t, --tsconfig <file>', 'path to a tsconfig <file> to use when compiling TypeScript files')
+    .option('-s, --standalone <name>', "export the agent's contents under the external module <name>")
     .parse(process.argv);
 
 const inputModule = program.args[0];
@@ -30,7 +31,8 @@ const options = {
   sourcemap: program.sourcemap,
   compress: !!program.compress,
   useAbsolutePaths: !!program.useAbsolutePaths,
-  tsconfig: program.tsconfig
+  tsconfig: program.tsconfig,
+  standalone: program.standalone
 };
 
 if (!watch) {
