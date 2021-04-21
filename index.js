@@ -2,6 +2,7 @@ const browserify = require('browserify');
 const chokidar = require('chokidar');
 const concat = require('concat-stream');
 const EventEmitter = require('events');
+const esmify = require('esmify');
 const fs = require('fs');
 const mold = require('mold-source-map');
 const path = require('path');
@@ -250,7 +251,8 @@ function makeCompiler(entrypoint, cache, options) {
         }
       }
     );
-  });
+  })
+  .plugin(esmify);
 
   if (options.compress) {
     b.transform({

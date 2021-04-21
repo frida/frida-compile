@@ -29,6 +29,7 @@
     "chokidar": "^3.0.0",
     "commander": "^6.1.0",
     "concat-stream": "^2.0.0",
+    "esmify": "^2.1.1",
     "frida-any-promise": "^2.0.0",
     "frida-buffer": "^1.0.7",
     "frida-fs": "^3.0.0",
