@@ -201,7 +201,8 @@ function makeCompiler(entrypoint, cache, options) {
     builtins: fridaBuiltins,
     cache: cache,
     debug: options.sourcemap,
-    standalone: options.standalone
+    standalone: options.standalone,
+    browserField: false
   })
   .plugin(tsify, {
     forceConsistentCasingInFileNames: true,
