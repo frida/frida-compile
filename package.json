@@ -22,6 +22,7 @@
     "frida-compile": "./bin/compile.js"
   },
   "dependencies": {
+    "@frida/mold-source-map": "^1.0.0",
     "@frida/uglifyify": "^7.0.1",
     "bignumber.js": "^9.0.0",
     "browserify": "^17.0.0",
@@ -35,7 +36,6 @@
     "frida-http": "^3.0.0",
     "frida-net": "^3.0.1",
     "frida-process": "^3.0.1",
-    "mold-source-map": "^0.4.0",
     "node-notifier": "^8.0.1",
     "through2": "^4.0.2",
     "tsify": "^5.0.2",
