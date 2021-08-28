@@ -233,10 +233,39 @@ for (const pkgEntrypoint of packages) {
 
 function processJSModule(path: string, mod: ts.Node) {
     console.log(">>>", path);
-    ts.forEachChild(mod, node => {
-        console.log(node.kind);
-    });
+    ts.forEachChild(mod, visit);
     console.log("<<<", path);
+
+    function visit(node: ts.Node) {
+        if (ts.isCallExpression(node)) {
+            visitCallExpression(node);
+        } else {
+            ts.forEachChild(node, visit);
+        }
+    }
+
+    function visitCallExpression(call: ts.CallExpression) {
+        const expr: ts.LeftHandSideExpression = call.expression;
+        if (!ts.isIdentifier(expr)) {
+            return;
+        }
+        if (expr.escapedText !== "require") {
+            return;
+        }
+
+        const args = call.arguments;
+        if (args.length !== 1) {
+            return;
+        }
+
+        const arg = args[0];
+        if (!ts.isStringLiteral(arg)) {
+            return;
+        }
+
+        const name = arg.text;
+        console.log(`\tDepends on: ${name}`);
+}
 }
 
 const t2 = Date.now();
