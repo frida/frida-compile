@@ -109,12 +109,10 @@ class FridaHost implements ts.System, ts.ParseConfigFileHost {
     }
 
     getExecutingFilePath(): string {
-        console.log("TODO: getExecutingFilePath()");
         return fsPath.join(libDir, "typescript.js");
     }
 
     getCurrentDirectory(): string {
-        console.log("TODO: getCurrentDirectory()");
         return projectRoot;
     }
 
@@ -173,7 +171,6 @@ class FridaHost implements ts.System, ts.ParseConfigFileHost {
     }
 
     realpath(path: string): string {
-        console.log("TODO: realpath");
         return path;
     }
 
