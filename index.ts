@@ -295,11 +295,26 @@ const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
 
         console.log("Visiting!");
         let done = false;
+        const { factory } = context;
         const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
             console.log("visit!", node.kind);
             if (!done && ts.isExpressionStatement(node)) {
+                const closureOpen = factory.createExpressionStatement(
+                    factory.createParenthesizedExpression(
+                        factory.createFunctionExpression(
+                            undefined,
+                            undefined,
+                            undefined,
+                            undefined,
+                            [],
+                            undefined,
+                            factory.createBlock([], true)
+                        )
+                    )
+                );
+                const closureClose = factory.createExpressionStatement(factory.createParenthesizedExpression(factory.createIdentifier("")));
                 done = true;
-                return [lastFile!, node];
+                return [closureOpen, lastFile!, closureClose, node];
             }
 
             return ts.visitEachChild(node, visitor, context);
@@ -311,7 +326,7 @@ const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
 
 const transformers: ts.CustomTransformers = {
     before: [
-        //testTransformer,
+        testTransformer,
     ]
 };
 
