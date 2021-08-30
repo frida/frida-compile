@@ -236,19 +236,21 @@ while (pendingModules.size > 0) {
     if (fsPath.isAbsolute(entry)) {
         modPath = entry;
     } else {
-        const pkgDir = fsPath.join(nodeModulesDir, entry);
+        const pkgPath = fsPath.join(nodeModulesDir, entry);
 
-        const rawPkgMeta = host.readFile(fsPath.join(pkgDir, "package.json"));
-        if (rawPkgMeta === undefined) {
+        const rawPkgMeta = host.readFile(fsPath.join(pkgPath, "package.json"));
+        if (rawPkgMeta !== undefined) {
+            const pkgMeta = JSON.parse(rawPkgMeta);
+            const pkgMain = pkgMeta.main ?? "index.js";
+            const pkgEntrypoint = fsPath.join(pkgPath, pkgMain);
+
+            modPath = pkgEntrypoint;
+        } else if (entry.indexOf("/") !== -1) {
+            modPath = pkgPath;
+        } else {
             console.log("Assuming built-in:", entry)
             continue;
         }
-
-        const pkgMeta = JSON.parse(rawPkgMeta);
-        const pkgMain = pkgMeta.main ?? "index.js";
-        const pkgEntrypoint = fsPath.join(pkgDir, pkgMain);
-
-        modPath = pkgEntrypoint;
     }
 
     if (modPath.endsWith(".json")) {
