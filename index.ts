@@ -1,15 +1,18 @@
 import fs from "fs";
 import fsPath from "path";
 import ts from "typescript";
+import { Dependency } from "webpack";
 
 const t1 = Date.now();
 
 const projectRoot = "/Users/oleavr/src/hello-frida";
+const nodeModulesDir = fsPath.join(projectRoot, "node_modules");
 const libDir = "/Users/oleavr/src/frida-compile/node_modules/typescript/lib";
 
 const output = new Map<string, string>();
 const fileCache = new Map<string, string>();
-const packages = new Set<string>();
+const pendingModules = new Set<string>();
+const processedModules = new Set<string>();
 
 class FridaHost implements ts.System, ts.ParseConfigFileHost {
     args = [];
@@ -42,14 +45,15 @@ class FridaHost implements ts.System, ts.ParseConfigFileHost {
 
             if (fsPath.basename(path) === "package.json") {
                 const pkgDir = fsPath.dirname(path);
-                const pkgJson = JSON.parse(result);
-                const pkgMain = pkgJson.main ?? "index.js";
+                const pkgMeta = JSON.parse(result);
+                const pkgMain = pkgMeta.main ?? "index.js";
                 const pkgEntrypoint = fsPath.join(pkgDir, pkgMain);
-                packages.add(pkgEntrypoint);
+                pendingModules.add(pkgEntrypoint);
+                processedModules.add(pkgMeta.name);
             }
         }
 
-        console.log(`readFile("${path}") => ${(result !== undefined) ? "success" : "failure"}`);
+        //console.log(`readFile("${path}") => ${(result !== undefined) ? "success" : "failure"}`);
 
         return result;
     }
@@ -223,18 +227,55 @@ const program = ts.createProgram({
 program.emit();
 console.log("Output:", JSON.stringify(Object.fromEntries(output)));
 
-console.log("Packages:", JSON.stringify(Array.from(packages)));
+while (pendingModules.size > 0) {
+    const entry = pendingModules.values().next().value;
+    pendingModules.delete(entry);
+    processedModules.add(entry);
 
-for (const pkgEntrypoint of packages) {
-    const sourceFile = ts.createSourceFile(pkgEntrypoint, host.readFile(pkgEntrypoint)!, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
-    processJSModule(pkgEntrypoint, sourceFile);
-    console.log("parsed:", pkgEntrypoint);
+    let modPath: string;
+    if (fsPath.isAbsolute(entry)) {
+        modPath = entry;
+    } else {
+        const pkgDir = fsPath.join(nodeModulesDir, entry);
+
+        const rawPkgMeta = host.readFile(fsPath.join(pkgDir, "package.json"));
+        if (rawPkgMeta === undefined) {
+            console.log("Assuming built-in:", entry)
+            continue;
+        }
+
+        const pkgMeta = JSON.parse(rawPkgMeta);
+        const pkgMain = pkgMeta.main ?? "index.js";
+        const pkgEntrypoint = fsPath.join(pkgDir, pkgMain);
+
+        modPath = pkgEntrypoint;
+    }
+
+    if (modPath.endsWith(".json")) {
+        console.log("Ignoring JSON:", entry);
+        continue;
+    }
+
+    if (host.directoryExists(modPath)) {
+        modPath = fsPath.join(modPath, "index.js");
+    }
+
+    let modCode = host.readFile(modPath);
+    if (modCode === undefined) {
+        modPath += ".js";
+        modCode = host.readFile(modPath);
+        if (modCode === undefined) {
+            throw new Error(`Unable to resolve: ${entry}`);
+        }
+    }
+
+    const sourceFile = ts.createSourceFile(modPath, modCode, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+    processJSModule(modPath, sourceFile);
 }
 
 function processJSModule(path: string, mod: ts.Node) {
-    console.log(">>>", path);
+    const moduleDir = fsPath.dirname(path);
     ts.forEachChild(mod, visit);
-    console.log("<<<", path);
 
     function visit(node: ts.Node) {
         if (ts.isCallExpression(node)) {
@@ -263,9 +304,20 @@ function processJSModule(path: string, mod: ts.Node) {
             return;
         }
 
-        const name = arg.text;
-        console.log(`\tDepends on: ${name}`);
-}
+        const depName = arg.text;
+        const depPath = resolveModule(depName);
+        if (!processedModules.has(depPath)) {
+            pendingModules.add(depPath);
+        }
+    }
+
+    function resolveModule(name: string): string {
+        if (name.startsWith(".")) {
+            return fsPath.join(moduleDir, name);
+        } else {
+            return name;
+        }
+    }
 }
 
 const t2 = Date.now();
