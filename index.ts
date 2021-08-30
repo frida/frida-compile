@@ -216,13 +216,14 @@ delete options.noEmit;
 
 console.log(JSON.stringify(options));
 
+const entrypointPath = fsPath.join(projectRoot, "agent", "index.ts");
+
 const program = ts.createProgram({
-    rootNames: [fsPath.join(projectRoot, "agent", "index.ts")],
+    rootNames: [entrypointPath],
     options
 });
 
-program.emit();
-console.log("Output:", JSON.stringify(Object.fromEntries(output)));
+let lastFile: ts.SourceFile | null = null;
 
 while (pendingModules.size > 0) {
     const entry = pendingModules.values().next().value;
@@ -270,7 +271,52 @@ while (pendingModules.size > 0) {
 
     const sourceFile = ts.createSourceFile(modPath, modCode, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
     processJSModule(modPath, sourceFile);
+
+    lastFile = sourceFile;
 }
+
+const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
+    return sourceFile => {
+        console.log(`Visiting ${sourceFile.fileName}`);
+
+        if (sourceFile.fileName !== entrypointPath) {
+            console.log("No changes needed here.");
+
+            const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
+                if (!ts.isSourceFile(node)) {
+                    return [];
+                }
+
+                return ts.visitEachChild(node, visitor, context);
+            };
+
+            return ts.visitNode(sourceFile, visitor);
+        }
+
+        console.log("Visiting!");
+        let done = false;
+        const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
+            console.log("visit!", node.kind);
+            if (!done && ts.isExpressionStatement(node)) {
+                done = true;
+                return [lastFile!, node];
+            }
+
+            return ts.visitEachChild(node, visitor, context);
+        };
+
+        return ts.visitNode(sourceFile, visitor);
+    };
+};
+
+const transformers: ts.CustomTransformers = {
+    before: [
+        //testTransformer,
+    ]
+};
+
+program.emit(undefined, undefined, undefined, undefined, transformers);
+console.log("Output:", JSON.stringify(Object.fromEntries(output)));
 
 function processJSModule(path: string, mod: ts.Node) {
     const moduleDir = fsPath.dirname(path);
