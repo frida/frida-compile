@@ -1,5 +1,6 @@
 import fs from "fs";
 import fsPath from "path";
+import path from "path/posix";
 import { cloneNode } from "ts-clone-node";
 import ts from "typescript";
 
@@ -14,7 +15,7 @@ const fileCache = new Map<string, string>();
 const pendingModules = new Set<string>();
 const processedModules = new Set<string>();
 
-class FridaHost implements ts.System, ts.ParseConfigFileHost {
+class FridaSystem implements ts.System {
     args = [];
     newLine = "\n";
     useCaseSensitiveFileNames = true;
@@ -42,15 +43,6 @@ class FridaHost implements ts.System, ts.ParseConfigFileHost {
 
         if (result !== undefined) {
             fileCache.set(path, result);
-
-            if (fsPath.basename(path) === "package.json") {
-                const pkgDir = fsPath.dirname(path);
-                const pkgMeta = JSON.parse(result);
-                const pkgMain = pkgMeta.main ?? "index.js";
-                const pkgEntrypoint = fsPath.join(pkgDir, pkgMain);
-                pendingModules.add(pkgEntrypoint);
-                processedModules.add(pkgMeta.name);
-            }
         }
 
         //console.log(`readFile("${path}") => ${(result !== undefined) ? "success" : "failure"}`);
@@ -195,14 +187,39 @@ class FridaHost implements ts.System, ts.ParseConfigFileHost {
         console.log("TODO: base64encode");
         return "zzz";
     }
+}
+
+const sys = new FridaSystem();
+ts.sys = sys;
+
+class FridaConfigFileHost implements ts.ParseConfigFileHost {
+    useCaseSensitiveFileNames = true;
+
+    readDirectory(rootDir: string, extensions: readonly string[], excludes: readonly string[] | undefined, includes: readonly string[], depth?: number): readonly string[] {
+        return sys.readDirectory(rootDir, extensions, excludes, includes, depth);
+    }
+
+    fileExists(path: string): boolean {
+        return sys.fileExists(path);
+    }
+
+    readFile(path: string): string | undefined {
+        return sys.readFile(path);
+    }
+
+    trace?(s: string): void {
+        console.log(s);
+    }
+
+    getCurrentDirectory(): string {
+        return projectRoot;
+    }
 
     onUnRecoverableConfigFileDiagnostic(diagnostic: ts.Diagnostic) {
     }
 }
 
-const host = new FridaHost();
-
-ts.sys = host;
+const configFileHost = new FridaConfigFileHost();
 
 const defaultOptions: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2020,
@@ -210,20 +227,36 @@ const defaultOptions: ts.CompilerOptions = {
     strict: true
 };
 
-const options = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultOptions, host)!.options;
+const options = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultOptions, configFileHost)!.options;
 options.noImplicitUseStrict = true;
 delete options.noEmit;
 
-console.log(JSON.stringify(options));
+const compilerHost = ts.createIncrementalCompilerHost(options, sys);
 
 const entrypointPath = fsPath.join(projectRoot, "agent", "index.ts");
 
 const program = ts.createProgram({
     rootNames: [entrypointPath],
-    options
+    options,
+    host: compilerHost
 });
 
+for (const sf of program.getSourceFiles()) {
+    if (!sf.isDeclarationFile) {
+        const fileName = sf.fileName;
+        const bareName = fileName.substr(0, fileName.lastIndexOf("."));
+        processedModules.add(bareName);
+    }
+}
+for (const sf of program.getSourceFiles()) {
+    if (!sf.isDeclarationFile) {
+        processJSModule(sf.fileName, sf);
+    }
+}
+
 let lastFile: ts.SourceFile | null = null;
+
+console.log("Starting with:", JSON.stringify(Array.from(pendingModules)));
 
 while (pendingModules.size > 0) {
     const entry = pendingModules.values().next().value;
@@ -236,7 +269,7 @@ while (pendingModules.size > 0) {
     } else {
         const pkgPath = fsPath.join(nodeModulesDir, entry);
 
-        const rawPkgMeta = host.readFile(fsPath.join(pkgPath, "package.json"));
+        const rawPkgMeta = sys.readFile(fsPath.join(pkgPath, "package.json"));
         if (rawPkgMeta !== undefined) {
             const pkgMeta = JSON.parse(rawPkgMeta);
             const pkgMain = pkgMeta.main ?? "index.js";
@@ -256,14 +289,14 @@ while (pendingModules.size > 0) {
         continue;
     }
 
-    if (host.directoryExists(modPath)) {
+    if (sys.directoryExists(modPath)) {
         modPath = fsPath.join(modPath, "index.js");
     }
 
-    let modCode = host.readFile(modPath);
+    let modCode = sys.readFile(modPath);
     if (modCode === undefined) {
         modPath += ".js";
-        modCode = host.readFile(modPath);
+        modCode = sys.readFile(modPath);
         if (modCode === undefined) {
             throw new Error(`Unable to resolve: ${entry}`);
         }
@@ -275,35 +308,14 @@ while (pendingModules.size > 0) {
     lastFile = sourceFile;
 }
 
+console.log("Finished with:", JSON.stringify(Array.from(processedModules)));
+
 const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
     return sourceFile => {
         console.log(`Visiting ${sourceFile.fileName}`);
 
-        if (sourceFile.fileName !== entrypointPath) {
-            console.log("No changes needed here.");
-
-            const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
-                if (!ts.isSourceFile(node)) {
-                    return [];
-                }
-
-                return ts.visitEachChild(node, visitor, context);
-            };
-
-            return ts.visitNode(sourceFile, visitor);
-        }
-
-        console.log("Visiting!");
-        let done = false;
         const { factory } = context;
         const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
-            console.log("visit!", node.kind);
-            if (!done && ts.isExpressionStatement(node)) {
-                done = true;
-                console.log(lastFile!.fileName);
-                return [wrapModuleInClosure(lastFile!, factory), node];
-            }
-
             return ts.visitEachChild(node, visitor, context);
         };
 
@@ -311,25 +323,11 @@ const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
     };
 };
 
-function wrapModuleInClosure(sourceFile: ts.SourceFile, factory: ts.NodeFactory): ts.Node {
-    return factory.createExpressionStatement(
-        factory.createParenthesizedExpression(
-            factory.createFunctionExpression(
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                [],
-                undefined,
-                factory.createBlock(sourceFile.statements.map(s => cloneNode(s)), true)
-            )
-        )
-    );
-}
-
 const transformers: ts.CustomTransformers = {
     before: [
         testTransformer,
+    ],
+    after: [
     ]
 };
 
@@ -341,11 +339,19 @@ function processJSModule(path: string, mod: ts.Node) {
     ts.forEachChild(mod, visit);
 
     function visit(node: ts.Node) {
-        if (ts.isCallExpression(node)) {
+        if (ts.isImportDeclaration(node)) {
+            visitImportDeclaration(node);
+        } else if (ts.isCallExpression(node)) {
             visitCallExpression(node);
         } else {
             ts.forEachChild(node, visit);
         }
+    }
+
+    function visitImportDeclaration(imp: ts.ImportDeclaration) {
+        const depName = (imp.moduleSpecifier as ts.StringLiteral).text;
+        console.log("Import of:", depName);
+        maybeAddModuleToPending(depName);
     }
 
     function visitCallExpression(call: ts.CallExpression) {
@@ -368,9 +374,13 @@ function processJSModule(path: string, mod: ts.Node) {
         }
 
         const depName = arg.text;
-        const depPath = resolveModule(depName);
-        if (!processedModules.has(depPath)) {
-            pendingModules.add(depPath);
+        maybeAddModuleToPending(depName);
+    }
+
+    function maybeAddModuleToPending(name: string) {
+        const path = resolveModule(name);
+        if (!processedModules.has(path)) {
+            pendingModules.add(path);
         }
     }
 
