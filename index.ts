@@ -1,7 +1,7 @@
 import fs from "fs";
 import fsPath from "path";
+import { cloneNode } from "ts-clone-node";
 import ts from "typescript";
-import { Dependency } from "webpack";
 
 const t1 = Date.now();
 
@@ -299,22 +299,9 @@ const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
         const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
             console.log("visit!", node.kind);
             if (!done && ts.isExpressionStatement(node)) {
-                const closureOpen = factory.createExpressionStatement(
-                    factory.createParenthesizedExpression(
-                        factory.createFunctionExpression(
-                            undefined,
-                            undefined,
-                            undefined,
-                            undefined,
-                            [],
-                            undefined,
-                            factory.createBlock([], true)
-                        )
-                    )
-                );
-                const closureClose = factory.createExpressionStatement(factory.createParenthesizedExpression(factory.createIdentifier("")));
                 done = true;
-                return [closureOpen, lastFile!, closureClose, node];
+                console.log(lastFile!.fileName);
+                return [wrapModuleInClosure(lastFile!, factory), node];
             }
 
             return ts.visitEachChild(node, visitor, context);
@@ -323,6 +310,22 @@ const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
         return ts.visitNode(sourceFile, visitor);
     };
 };
+
+function wrapModuleInClosure(sourceFile: ts.SourceFile, factory: ts.NodeFactory): ts.Node {
+    return factory.createExpressionStatement(
+        factory.createParenthesizedExpression(
+            factory.createFunctionExpression(
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                [],
+                undefined,
+                factory.createBlock(sourceFile.statements.map(s => cloneNode(s)), true)
+            )
+        )
+    );
+}
 
 const transformers: ts.CustomTransformers = {
     before: [
@@ -382,3 +385,5 @@ function processJSModule(path: string, mod: ts.Node) {
 
 const t2 = Date.now();
 console.log(`Took ${t2 - t1} ms`);
+
+console.log(output.get("/agent/index.js"));
