@@ -16,14 +16,18 @@ module.exports = {
     extensions: ['.ts', '.js'],
     fallback: {
       buffer: require.resolve('buffer/'),
+      crypto: require.resolve('crypto-browserify'),
       fs: require.resolve('frida-fs'),
+      os: require.resolve('os-browserify/browser'),
       path: require.resolve('path-browserify'),
+      process: require.resolve('process/browser'),
       stream: require.resolve('stream-browserify'),
     }
   },
   plugins: [
     new webpack.ProvidePlugin({
       Buffer: ['buffer', 'Buffer'],
+      process: 'process/browser'
     })
   ],
   output: {

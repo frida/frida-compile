@@ -1,6 +1,6 @@
+import { cjsToEsm } from "cjstoesm";
 import fs from "fs";
 import fsPath from "path";
-import path from "path/posix";
 import sjcl from "sjcl";
 import ts from "typescript";
 
@@ -226,7 +226,6 @@ const defaultOptions: ts.CompilerOptions = {
 };
 
 const options = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultOptions, configFileHost)!.options;
-options.noImplicitUseStrict = true;
 delete options.noEmit;
 
 const compilerHost = ts.createIncrementalCompilerHost(options, sys);
@@ -239,12 +238,12 @@ const program = ts.createProgram({
     host: compilerHost
 });
 
-const modulePaths: string[] = [];
+const modules = new Map<string, ts.SourceFile>();
 
 for (const sf of program.getSourceFiles()) {
     if (!sf.isDeclarationFile) {        
         const fileName = sf.fileName;
-        modulePaths.push(fileName);
+        modules.set(fileName, sf);
 
         const bareName = fileName.substr(0, fileName.lastIndexOf("."));
         processedModules.add(bareName);
@@ -256,8 +255,6 @@ for (const sf of program.getSourceFiles()) {
         processJSModule(sf.fileName, sf);
     }
 }
-
-let lastFile: ts.SourceFile | null = null;
 
 console.log("Starting with:", JSON.stringify(Array.from(pendingModules)));
 
@@ -303,15 +300,13 @@ while (pendingModules.size > 0) {
         }
     }
 
-    modulePaths.push(modPath);
-
     const sourceFile = compilerHost.getSourceFile(modPath, ts.ScriptTarget.ES2020)!;
     processJSModule(modPath, sourceFile);
 
-    lastFile = sourceFile;
+    modules.set(modPath, sourceFile);
 }
 
-console.log("Finished with:", JSON.stringify(Array.from(modulePaths), null, 2));
+console.log("Finished with:", JSON.stringify(Array.from(modules.keys()), null, 2));
 
 const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
     return sourceFile => {
@@ -328,7 +323,7 @@ const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
 
 const transformers: ts.CustomTransformers = {
     before: [
-        testTransformer,
+        //testTransformer,
     ],
     after: [
     ]
@@ -336,6 +331,14 @@ const transformers: ts.CustomTransformers = {
 
 program.emit(undefined, undefined, undefined, undefined, transformers);
 console.log("Output:", JSON.stringify(Object.fromEntries(output)));
+
+const transformer = cjsToEsm().before![0];
+console.log("transformer:", JSON.stringify(transformer));
+for (const [path, sourceFile] of modules) {
+    if (path.endsWith(".js")) {
+        console.log("Processing:", path);
+    }
+}
 
 function processJSModule(path: string, mod: ts.Node) {
     const moduleDir = fsPath.dirname(path);
