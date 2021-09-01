@@ -1,7 +1,7 @@
 import fs from "fs";
 import fsPath from "path";
 import path from "path/posix";
-import { cloneNode } from "ts-clone-node";
+import sjcl from "sjcl";
 import ts from "typescript";
 
 const t1 = Date.now();
@@ -144,17 +144,15 @@ class FridaSystem implements ts.System {
     }
 
     createHash(data: string): string {
-        console.log("TODO: createHash");
-        return "xxx";
+        return this.createSHA256Hash(data);
     }
 
     createSHA256Hash(data: string): string {
-        console.log("TODO: createSHA256Hash");
-        return "xxx";
+        const bits = sjcl.hash.sha256.hash(data);
+        return sjcl.codec.hex.fromBits(bits);
     }
 
     getMemoryUsage(): number {
-        console.log("TODO: getMemoryUsage");
         return Frida.heapSize;
     }
 
@@ -241,13 +239,18 @@ const program = ts.createProgram({
     host: compilerHost
 });
 
+const modulePaths: string[] = [];
+
 for (const sf of program.getSourceFiles()) {
-    if (!sf.isDeclarationFile) {
+    if (!sf.isDeclarationFile) {        
         const fileName = sf.fileName;
+        modulePaths.push(fileName);
+
         const bareName = fileName.substr(0, fileName.lastIndexOf("."));
         processedModules.add(bareName);
     }
 }
+
 for (const sf of program.getSourceFiles()) {
     if (!sf.isDeclarationFile) {
         processJSModule(sf.fileName, sf);
@@ -293,22 +296,22 @@ while (pendingModules.size > 0) {
         modPath = fsPath.join(modPath, "index.js");
     }
 
-    let modCode = sys.readFile(modPath);
-    if (modCode === undefined) {
+    if (!sys.fileExists(modPath)) {
         modPath += ".js";
-        modCode = sys.readFile(modPath);
-        if (modCode === undefined) {
+        if (!sys.fileExists(modPath)) {
             throw new Error(`Unable to resolve: ${entry}`);
         }
     }
 
-    const sourceFile = ts.createSourceFile(modPath, modCode, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+    modulePaths.push(modPath);
+
+    const sourceFile = compilerHost.getSourceFile(modPath, ts.ScriptTarget.ES2020)!;
     processJSModule(modPath, sourceFile);
 
     lastFile = sourceFile;
 }
 
-console.log("Finished with:", JSON.stringify(Array.from(processedModules)));
+console.log("Finished with:", JSON.stringify(Array.from(modulePaths), null, 2));
 
 const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
     return sourceFile => {
