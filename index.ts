@@ -1,8 +1,7 @@
-import { cjsToEsm } from "cjstoesm";
 import fs from "fs";
-import fsPath from "path";
+import * as fsPath from "path";
 import sjcl from "sjcl";
-import ts from "typescript";
+import * as ts from "typescript";
 
 const t1 = Date.now();
 
@@ -187,8 +186,13 @@ class FridaSystem implements ts.System {
     }
 }
 
-const sys = new FridaSystem();
-ts.sys = sys;
+let sys: ts.System;
+if (typeof Frida !== "undefined") {
+    sys = new FridaSystem();
+    //ts.sys = sys;
+} else {
+    sys = ts.sys;
+}
 
 class FridaConfigFileHost implements ts.ParseConfigFileHost {
     useCaseSensitiveFileNames = true;
@@ -232,18 +236,18 @@ const compilerHost = ts.createIncrementalCompilerHost(options, sys);
 
 const entrypointPath = fsPath.join(projectRoot, "agent", "index.ts");
 
-const program = ts.createProgram({
+let program = ts.createProgram({
     rootNames: [entrypointPath],
     options,
     host: compilerHost
 });
 
-const modules = new Map<string, ts.SourceFile>();
+const modulePaths: string[] = [];
 
 for (const sf of program.getSourceFiles()) {
     if (!sf.isDeclarationFile) {        
         const fileName = sf.fileName;
-        modules.set(fileName, sf);
+        modulePaths.push(fileName);
 
         const bareName = fileName.substr(0, fileName.lastIndexOf("."));
         processedModules.add(bareName);
@@ -300,13 +304,13 @@ while (pendingModules.size > 0) {
         }
     }
 
+    modulePaths.push(modPath);
+
     const sourceFile = compilerHost.getSourceFile(modPath, ts.ScriptTarget.ES2020)!;
     processJSModule(modPath, sourceFile);
-
-    modules.set(modPath, sourceFile);
 }
 
-console.log("Finished with:", JSON.stringify(Array.from(modules.keys()), null, 2));
+console.log("Finished with:", JSON.stringify(Array.from(modulePaths), null, 2));
 
 const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
     return sourceFile => {
@@ -330,15 +334,10 @@ const transformers: ts.CustomTransformers = {
 };
 
 program.emit(undefined, undefined, undefined, undefined, transformers);
-console.log("Output:", JSON.stringify(Object.fromEntries(output)));
 
-const transformer = cjsToEsm().before![0];
-console.log("transformer:", JSON.stringify(transformer));
-for (const [path, sourceFile] of modules) {
-    if (path.endsWith(".js")) {
-        console.log("Processing:", path);
-    }
-}
+setInterval(() => {
+    console.log("Still alive");
+}, 1000);
 
 function processJSModule(path: string, mod: ts.Node) {
     const moduleDir = fsPath.dirname(path);
