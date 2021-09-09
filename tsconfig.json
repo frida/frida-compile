@@ -3,9 +3,13 @@
     "target": "es2020",
     "lib": ["es2020"],
     "moduleResolution": "node",
+    "module": "ES2020",
     "allowSyntheticDefaultImports": true,
-    "allowJs": true,
-    "strict": true
+    "strict": true,
+    "rootDir": "src",
+    "outDir": "dist"
   },
-  "include": ["./index.ts"]
+  "include": [
+    "src/index.ts"
+  ]
 }

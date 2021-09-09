@@ -2,7 +2,8 @@
   "name": "frida-compile",
   "version": "11.0.0",
   "description": "Compile a Frida script comprised of one or more Node.js modules",
-  "main": "index.ts",
+  "main": "dist/index.js",
+  "type": "module",
   "scripts": {
     "prepare": "npm run build",
     "build": "webpack-cli build",
