@@ -1,4 +1,4 @@
-import { cjsToEsm } from "../ext/cjstoesm/dist";
+import { cjsToEsm } from "../ext/cjstoesm/dist/index.js";
 import fs from "fs";
 import fsPath from "path";
 import sjcl from "sjcl";
@@ -242,7 +242,7 @@ const compilerHost = ts.createIncrementalCompilerHost(options, sys);
 
 const entrypointPath = fsPath.join(projectRoot, "agent", "index.ts");
 
-let program = ts.createProgram({
+const program = ts.createProgram({
     rootNames: [entrypointPath],
     options,
     host: compilerHost
@@ -323,59 +323,28 @@ while (pendingModules.size > 0) {
     processJSModule(mod, processedModules, pendingModules);
 }
 
-const testTransformer: ts.TransformerFactory<ts.SourceFile> = context => {
-    return sourceFile => {
-        console.log(`Visiting ${sourceFile.fileName}`);
-
-        if (sourceFile.fileName !== entrypointPath) {
-            console.log("No changes needed here.");
-
-            const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
-                if (!ts.isSourceFile(node)) {
-                    return [];
-                }
-
-                return ts.visitEachChild(node, visitor, context);
-            };
-
-            return ts.visitNode(sourceFile, visitor);
-        }
-
-        let done = false;
-        //const { factory } = context;
-        const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
-            if (!done && ts.isExpressionStatement(node)) {
-                done = true;
-                const result = [];
-                result.push(node);
-                return result;
-            }
-
-            return ts.visitEachChild(node, visitor, context);
-        };
-
-        return ts.visitNode(sourceFile, visitor);
-    };
-};
-
-const transformers: ts.CustomTransformers = {
-    before: [
-    ],
-    after: [
-        testTransformer,
-    ]
-};
-
+/*
 const t2 = Date.now();
-program.emit(undefined, undefined, undefined, undefined, transformers);
+program.emit();
 
 const t3 = Date.now();
 console.log(`Took ${t3 - t1} ms, emit took ${t3 - t2} ms`);
+*/
 
-const t4 = Date.now();
-program.emit(undefined, undefined, undefined, undefined, transformers);
-const t5 = Date.now();
-console.log(`Second emit took ${t5 - t4} ms`);
+const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs").slice(0, 2);
+if (legacyModules.length > 0) {
+    const p = ts.createProgram({
+        rootNames: legacyModules.map(m => m.path),
+        options: {
+            ...options,
+            outDir: fsPath.join(projectRoot, "converted")
+        },
+        host: compilerHost
+    });
+    console.log("Performing conversion:", legacyModules.map(m => m.path));
+    p.emit(undefined, undefined, undefined, undefined, cjsToEsm());
+    console.log("Performed conversion");
+}
 
 interface JSModule {
     type: "cjs" | "esm";
