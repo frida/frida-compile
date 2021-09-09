@@ -2,8 +2,8 @@
   "compilerOptions": {
     "target": "es2020",
     "lib": ["es2020"],
-    "moduleResolution": "node",
     "module": "ES2020",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "rootDir": "src",

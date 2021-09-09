@@ -1,3 +1,4 @@
+import { cjsToEsm } from "../ext/cjstoesm/dist";
 import fs from "fs";
 import fsPath from "path";
 import sjcl from "sjcl";

@@ -1,3 +1,6 @@
 [submodule "ext/TypeScript"]
 	path = ext/TypeScript
 	url = https://github.com/frida/TypeScript.git
+[submodule "ext/cjstoesm"]
+	path = ext/cjstoesm
+	url = https://github.com/frida/cjstoesm.git
