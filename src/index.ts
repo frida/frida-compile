@@ -57,11 +57,7 @@ class FridaSystem implements ts.System {
     }
 
     writeFile(path: string, data: string, writeByteOrderMark?: boolean): void {
-        if (path.startsWith(projectRoot)) {
-            output.set(path.substr(projectRoot.length), data);
-        } else {
-            console.log("writeFile() ignoring:", path);
-        }
+        console.log("writeFile() ignoring:", path);
     }
 
     watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
@@ -239,6 +235,9 @@ const options = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "ts
 delete options.noEmit;
 
 const compilerHost = ts.createIncrementalCompilerHost(options, sys);
+compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
+    output.set(fileName, data);
+};
 
 const entrypointPath = fsPath.join(projectRoot, "agent", "index.ts");
 
@@ -331,19 +330,23 @@ const t3 = Date.now();
 console.log(`Took ${t3 - t1} ms, emit took ${t3 - t2} ms`);
 */
 
-const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs").slice(0, 2);
+let legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
+legacyModules = legacyModules.slice(0, 1).concat(legacyModules.slice(2, 19));
 if (legacyModules.length > 0) {
     const p = ts.createProgram({
         rootNames: legacyModules.map(m => m.path),
         options: {
             ...options,
-            outDir: fsPath.join(projectRoot, "converted")
+            rootDir: projectRoot,
+            outDir: "/",
+            inlineSourceMap: true
         },
         host: compilerHost
     });
     console.log("Performing conversion:", legacyModules.map(m => m.path));
-    p.emit(undefined, undefined, undefined, undefined, cjsToEsm());
+    p.emit(undefined, undefined, undefined, undefined, cjsToEsm({ preserveModuleSpecifiers: "never" }));
     console.log("Performed conversion");
+    console.log("output:", Object.fromEntries(output));
 }
 
 interface JSModule {
