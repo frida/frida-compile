@@ -350,7 +350,7 @@ program.emit(undefined, undefined, undefined, undefined, {
     after: [
         removeUseStrict,
     ]
-]});
+});
 
 let legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
 legacyModules = legacyModules.slice(0, 1).concat(legacyModules.slice(2, 19));
