@@ -1,4 +1,4 @@
-import { cjsToEsm } from "../ext/cjstoesm/dist/index.js";
+import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/index.js";
 import fs from "fs";
 import fsPath from "path";
 import sjcl from "sjcl";
@@ -233,6 +233,9 @@ const defaultOptions: ts.CompilerOptions = {
 
 const options = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultOptions, configFileHost)!.options;
 delete options.noEmit;
+options.rootDir = projectRoot;
+options.outDir = "/";
+options.inlineSourceMap = true;
 
 const compilerHost = ts.createIncrementalCompilerHost(options, sys);
 compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
@@ -322,29 +325,50 @@ while (pendingModules.size > 0) {
     processJSModule(mod, processedModules, pendingModules);
 }
 
-/*
-const t2 = Date.now();
-program.emit();
+const removeUseStrict: ts.TransformerFactory<ts.SourceFile> = context => {
+    return sourceFile => {
+        console.log(`Visiting ${sourceFile.fileName}`);
 
-const t3 = Date.now();
-console.log(`Took ${t3 - t1} ms, emit took ${t3 - t2} ms`);
-*/
+        let done = false;
+        const { factory } = context;
+        const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
+            if (ts.isExpressionStatement(node)) {
+                const expression = node.expression;
+                if (ts.isStringLiteral(expression) && expression.text === "use strict") {
+                    return [];
+                }
+            }
+
+            return ts.visitEachChild(node, visitor, context);
+        };
+
+        return ts.visitNode(sourceFile, visitor);
+    };
+};
+
+program.emit(undefined, undefined, undefined, undefined, {
+    after: [
+        removeUseStrict,
+    ]
+]});
 
 let legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
 legacyModules = legacyModules.slice(0, 1).concat(legacyModules.slice(2, 19));
 if (legacyModules.length > 0) {
     const p = ts.createProgram({
         rootNames: legacyModules.map(m => m.path),
-        options: {
-            ...options,
-            rootDir: projectRoot,
-            outDir: "/",
-            inlineSourceMap: true
-        },
+        options,
         host: compilerHost
     });
     console.log("Performing conversion:", legacyModules.map(m => m.path));
-    p.emit(undefined, undefined, undefined, undefined, cjsToEsm({ preserveModuleSpecifiers: "never" }));
+    p.emit(undefined, undefined, undefined, undefined, {
+        before: [
+            cjsToEsmTransformer()
+        ],
+        after: [
+            removeUseStrict,
+        ]
+    });
     console.log("Performed conversion");
     console.log("output:", Object.fromEntries(output));
 }
