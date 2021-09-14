@@ -163,8 +163,8 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const chunks: string[] = [];
     chunks.push("📦\n")
     for (const name of names) {
-        const data = output.get(name)!;
-        chunks.push(`${data.length} ${name}\n`);
+        const rawData = Buffer.from(output.get(name)!);
+        chunks.push(`${rawData.length} ${name}\n`);
     }
     chunks.push("✄\n");
     let i = 0;
