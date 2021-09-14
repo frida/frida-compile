@@ -34,7 +34,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     options.rootDir = projectRoot;
     options.outDir = "/";
     options.sourceMap = true;
-    options.inlineSourceMap = false;
+    options.inlineSourceMap = true;
 
     const compilerHost = ts.createIncrementalCompilerHost(options, sys);
     compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
@@ -138,10 +138,9 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     if (legacyModules.length > 0) {
         const p = ts.createProgram({
             rootNames: legacyModules.map(m => m.path),
-            options,
+            options: { ...options, allowJs: true },
             host: compilerHost
         });
-        console.log("Performing conversion:", legacyModules.map(m => m.path));
         p.emit(undefined, undefined, undefined, undefined, {
             before: [
                 cjsToEsmTransformer()
@@ -150,10 +149,36 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                 useStrictRemovalTransformer()
             ]
         });
-        console.log("Performed conversion");
     }
 
-    console.log("Output:", Object.fromEntries(output));
+    let entrypointName = entrypoint.substr(projectRoot.length);
+    if (entrypointName.endsWith(".ts")) {
+        entrypointName = entrypointName.substr(0, entrypointName.length - 2) + "js";
+    }
+
+    const names = Array.from(output.keys());
+    names.splice(names.indexOf(entrypointName), 1);
+    names.unshift(entrypointName);
+
+    const chunks: string[] = [];
+    chunks.push("📦\n")
+    for (const name of names) {
+        const data = output.get(name)!;
+        chunks.push(`${data.length} ${name}\n`);
+    }
+    chunks.push("✄\n");
+    let i = 0;
+    for (const name of names) {
+        if (i !== 0) {
+            chunks.push("\n✄\n");
+        }
+        const data = output.get(name)!;
+        chunks.push(data);
+        i++;
+    }
+
+    const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
+    sys.writeFile(fullOutputPath, chunks.join(""), false);
 }
 
 interface JSModule {
