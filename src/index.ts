@@ -10,6 +10,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const libDir = "/Users/oleavr/src/frida-compile/node_modules/typescript/lib";
 
     const output = new Map<string, string>();
+    const generatedFiles = new Set<string>();
     const pendingModules = new Set<string>();
     const processedModules = new Set<string>();
     const modules = new Map<string, JSModule>();
@@ -56,6 +57,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         if (!sf.isDeclarationFile) {
             const fileName = sf.fileName;
             const bareName = fileName.substr(0, fileName.lastIndexOf("."));
+            generatedFiles.add(bareName + ".js");
             processedModules.add(bareName);
         }
     }
@@ -94,7 +96,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
             } else if (entry.indexOf("/") !== -1) {
                 modPath = pkgPath;
             } else {
-                console.log("Assuming built-in:", entry)
+                console.log("Assuming built-in:", entry);
                 continue;
             }
         }
@@ -108,7 +110,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
             modPath = fsPath.join(modPath, "index.js");
         }
 
-        if (!sys.fileExists(modPath)) {
+        if (!generatedFiles.has(modPath) && !sys.fileExists(modPath)) {
             modPath += ".js";
             if (!sys.fileExists(modPath)) {
                 throw new Error(`Unable to resolve: ${entry}`);
