@@ -34,6 +34,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     delete options.noEmit;
     options.rootDir = projectRoot;
     options.outDir = "/";
+    options.sourceRoot = projectRoot;
     options.sourceMap = true;
     options.inlineSourceMap = false;
 
