@@ -153,6 +153,18 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         });
     }
 
+    for (const [name, data] of output) {
+        if (name.endsWith(".js")) {
+            const lines = data.split("\n");
+            const n = lines.length;
+            const lastLine = lines[n - 1];
+            if (lastLine.startsWith("//# sourceMappingURL=")) {
+                const precedingLines = lines.slice(0, n - 1);
+                output.set(name, precedingLines.join("\n"));
+            }
+        }
+    }
+
     let entrypointName = entrypoint.substr(projectRoot.length);
     if (entrypointName.endsWith(".ts")) {
         entrypointName = entrypointName.substr(0, entrypointName.length - 2) + "js";
