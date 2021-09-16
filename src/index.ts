@@ -35,7 +35,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     options.rootDir = projectRoot;
     options.outDir = "/";
     options.sourceMap = true;
-    options.inlineSourceMap = true;
+    options.inlineSourceMap = false;
 
     const compilerHost = ts.createIncrementalCompilerHost(options, sys);
     compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
@@ -158,9 +158,20 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         entrypointName = entrypointName.substr(0, entrypointName.length - 2) + "js";
     }
 
-    const names = Array.from(output.keys());
-    names.splice(names.indexOf(entrypointName), 1);
-    names.unshift(entrypointName);
+    const names: string[] = [];
+    const namesInRawOrder = Array.from(output.keys());
+    const maps = new Set(namesInRawOrder.filter(name => name.endsWith(".map")));
+    for (const name of namesInRawOrder.filter(name => !name.endsWith(".map"))) {
+        let index = (name === entrypointName) ? 0 : names.length;
+
+        const mapName = name + ".map";
+        if (maps.has(mapName)) {
+            names.splice(index, 0, mapName);
+            index++;
+        }
+
+        names.splice(index, 0, name);
+    }
 
     const chunks: string[] = [];
     chunks.push("📦\n")
