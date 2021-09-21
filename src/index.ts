@@ -26,8 +26,9 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
 
     const defaultOptions: ts.CompilerOptions = {
         target: ts.ScriptTarget.ES2020,
-        allowJs: true,
+        module: ts.ModuleKind.ES2020,
         resolveJsonModule: true,
+        allowJs: true,
         strict: true
     };
 
@@ -59,8 +60,10 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         if (!sf.isDeclarationFile) {
             const fileName = sf.fileName;
             const bareName = fileName.substr(0, fileName.lastIndexOf("."));
-            generatedFiles.add(bareName + ".js");
+            const outName = bareName + ".js";
+            generatedFiles.add(outName);
             processedModules.add(bareName);
+            processedModules.add(outName);
         }
     }
 
@@ -121,7 +124,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         const sourceFile = compilerHost.getSourceFile(modPath, ts.ScriptTarget.ES2020)!;
 
         const mod: JSModule = {
-            type: "cjs", // TODO: detect
+            type: detectModuleType(modPath, sys),
             path: modPath,
             file: sourceFile
         };
@@ -208,10 +211,34 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     sys.writeFile(fullOutputPath, chunks.join(""), false);
 }
 
+type ModuleType = "cjs" | "esm";
+
 interface JSModule {
-    type: "cjs" | "esm";
+    type: ModuleType;
     path: string;
     file: ts.SourceFile;
+}
+
+function detectModuleType(modPath: string, sys: ts.System): ModuleType {
+    let curDir = fsPath.dirname(modPath);
+    while (true) {
+        const rawPkgMeta = sys.readFile(fsPath.join(curDir, "package.json"));
+        if (rawPkgMeta !== undefined) {
+            const pkgMeta = JSON.parse(rawPkgMeta);
+            if (pkgMeta.type === "module") {
+                return "esm";
+            }
+            break;
+        }
+
+        const nextDir = fsPath.dirname(curDir);
+        if (nextDir === curDir) {
+            break;
+        }
+        curDir = nextDir;
+    }
+
+    return "cjs";
 }
 
 function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: Set<string>): void {
