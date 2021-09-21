@@ -156,6 +156,15 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         });
     }
 
+    for (const [path, mod] of modules) {
+        if (path.startsWith(nodeModulesDir)) {
+            const assetName = path.substr(projectRoot.length);
+            if (!output.has(assetName)) {
+                output.set(assetName, mod.file.text);
+            }
+        }
+    }
+
     for (const [name, data] of output) {
         if (name.endsWith(".js")) {
             const lines = data.split("\n");
