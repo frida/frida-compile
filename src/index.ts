@@ -10,6 +10,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const libDir = "/Users/oleavr/src/frida-compile/node_modules/typescript/lib";
 
     const output = new Map<string, string>();
+    const aliases = new Map<string, string>();
     const generatedFiles = new Set<string>();
     const pendingModules = new Set<string>();
     const processedModules = new Set<string>();
@@ -96,6 +97,8 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                 const pkgMeta = JSON.parse(rawPkgMeta);
                 const pkgMain = pkgMeta.main ?? "index.js";
                 const pkgEntrypoint = fsPath.join(pkgPath, pkgMain);
+
+                aliases.set(pkgEntrypoint.substr(projectRoot.length), entry);
 
                 modPath = pkgEntrypoint;
             } else if (entry.indexOf("/") !== -1) {
@@ -204,6 +207,10 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     for (const name of names) {
         const rawData = Buffer.from(output.get(name)!);
         chunks.push(`${rawData.length} ${name}\n`);
+        const alias = aliases.get(name);
+        if (alias !== undefined) {
+            chunks.push(`↻ ${alias}\n`)
+        }
     }
     chunks.push("✄\n");
     let i = 0;
