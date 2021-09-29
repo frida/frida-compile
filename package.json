@@ -5,9 +5,12 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "prepare": "npm run build",
-    "build": "webpack-cli build",
-    "watch": "webpack-cli watch --mode=development"
+    "_prepare": "npm run build",
+    "_build": "webpack-cli build",
+    "_watch": "webpack-cli watch --mode=development"
+  },
+  "dependencies": {
+    "frida-fs": "^4.0.0"
   },
   "devDependencies": {
     "@types/frida-gum": "^17.1.0",
@@ -16,7 +19,6 @@
     "assert": "^2.0.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.0",
-    "frida-fs": "^3.0.2",
     "os-browserify": "^0.3.0",
     "path-browserify": "^1.0.1",
     "process": "^0.11.10",

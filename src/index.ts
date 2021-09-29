@@ -6,16 +6,18 @@ import ts from "../ext/TypeScript/built/local/typescript.js";
 export async function build(projectRoot: string, inputPath: string, outputPath: string): Promise<void> {
     const t1 = Date.now();
 
-    const nodeModulesDir = fsPath.join(projectRoot, "node_modules");
-    const libDir = "/Users/oleavr/src/frida-compile/node_modules/typescript/lib";
-    const shimDir = "/Users/oleavr/src/frida-compile/shims";
+    const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
+    const compilerRoot = "/Users/oleavr/src/frida-compile"; // FIXME
+    const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
+    const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
+    const shimDir = fsPath.join(compilerRoot, "shims");
     const shims = new Map([
+        ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
         ["supports-color", fsPath.join(shimDir, "supports-color.js")],
     ]);
 
     const output = new Map<string, string>();
     const aliases = new Map<string, string>();
-    const generatedFiles = new Set<string>();
     const pendingModules = new Set<string>();
     const processedModules = new Set<string>();
     const modules = new Map<string, JSModule>();
@@ -66,7 +68,6 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
             const fileName = sf.fileName;
             const bareName = fileName.substr(0, fileName.lastIndexOf("."));
             const outName = bareName + ".js";
-            generatedFiles.add(outName);
             processedModules.add(bareName);
             processedModules.add(outName);
         }
@@ -90,44 +91,49 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         pendingModules.delete(entry);
         processedModules.add(entry);
 
-        let modPath = shims.get(entry);
-        if (modPath !== undefined) {
-            aliases.set("/shims" + modPath.substr(shimDir.length), entry);
+        let modPath: string;
+        if (fsPath.isAbsolute(entry)) {
+            modPath = entry;
         } else {
-            if (fsPath.isAbsolute(entry)) {
-                modPath = entry;
-            } else {
-                const pkgPath = fsPath.join(nodeModulesDir, entry);
+            const tokens = entry.split("/");
+            const pkgName = tokens[0];
 
-                const rawPkgMeta = sys.readFile(fsPath.join(pkgPath, "package.json"));
-                if (rawPkgMeta !== undefined) {
-                    const pkgMeta = JSON.parse(rawPkgMeta);
-                    const pkgMain = pkgMeta.main ?? "index.js";
-                    let pkgEntrypoint = fsPath.join(pkgPath, pkgMain);
-                    if (sys.directoryExists(pkgEntrypoint)) {
-                        pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
-                    }
-
-                    aliases.set(pkgEntrypoint.substr(projectRoot.length), entry);
-
-                    modPath = pkgEntrypoint;
-                } else if (entry.indexOf("/") !== -1) {
-                    modPath = pkgPath;
+            const shimPath = shims.get(pkgName);
+            if (shimPath !== undefined) {
+                if (shimPath.endsWith(".js")) {
+                    modPath = shimPath;
                 } else {
-                    console.log("Assuming built-in:", entry);
-                    continue;
+                    modPath = fsPath.join(shimPath, ...tokens.slice(1));
                 }
+                aliases.set("/shims" + shimPath.substr(shimDir.length).replace("\\", "/"), entry);
+            } else {
+                modPath = fsPath.join(projectNodeModulesDir, pkgName, ...tokens.slice(1));
             }
         }
 
-        if (modPath.endsWith(".json")) {
-            continue;
+        if (sys.directoryExists(modPath)) {
+            const rawPkgMeta = sys.readFile(fsPath.join(modPath, "package.json"));
+            if (rawPkgMeta !== undefined) {
+                const pkgMeta = JSON.parse(rawPkgMeta);
+                const pkgMain = pkgMeta.main ?? "index.js";
+                let pkgEntrypoint = fsPath.join(modPath, pkgMain);
+                if (sys.directoryExists(pkgEntrypoint)) {
+                    pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
+                }
+
+                aliases.set(pkgEntrypoint.substr(projectRoot.length), entry);
+
+                modPath = pkgEntrypoint;
+            } else {
+                modPath = fsPath.join(modPath, "index.js");
+            }
         }
 
-        if (!generatedFiles.has(modPath) && !sys.fileExists(modPath)) {
+        if (!sys.fileExists(modPath)) {
             modPath += ".js";
             if (!sys.fileExists(modPath)) {
-                throw new Error(`Unable to resolve: ${entry}`);
+                console.log("Assuming built-in:", entry);
+                continue;
             }
         }
 
@@ -167,7 +173,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     }
 
     for (const [path, mod] of modules) {
-        if (path.startsWith(nodeModulesDir)) {
+        if (path.startsWith(projectNodeModulesDir)) {
             const assetName = path.substr(projectRoot.length);
             if (!output.has(assetName)) {
                 output.set(assetName, mod.file.text);
@@ -310,6 +316,10 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
     }
 
     function maybeAddModuleToPending(name: string) {
+        if (name.endsWith(".json")) {
+            return;
+        }
+
         const path = resolveModule(name);
         if (!processedModules.has(path)) {
             pendingModules.add(path);
