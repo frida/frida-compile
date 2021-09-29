@@ -12,6 +12,9 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
     const shimDir = fsPath.join(compilerRoot, "shims");
     const shims = new Map([
+        ["@frida/base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
+        ["@frida/ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
+        ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
         ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
         ["supports-color", fsPath.join(shimDir, "supports-color.js")],
     ]);
@@ -97,18 +100,27 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
             modPath = entry;
         } else {
             const tokens = entry.split("/");
-            const pkgName = tokens[0];
+
+            let pkgName: string;
+            let subPath: string[];
+            if (tokens[0] === "@frida") {
+                pkgName = tokens[0] + "/" + tokens[1];
+                subPath = tokens.slice(2);
+            } else {
+                pkgName = tokens[0];
+                subPath = tokens.slice(1);
+            }
 
             const shimPath = shims.get(pkgName);
             if (shimPath !== undefined) {
                 if (shimPath.endsWith(".js")) {
                     modPath = shimPath;
                 } else {
-                    modPath = fsPath.join(shimPath, ...tokens.slice(1));
+                    modPath = fsPath.join(shimPath, ...subPath);
                 }
                 needsAlias = true;
             } else {
-                modPath = fsPath.join(projectNodeModulesDir, pkgName, ...tokens.slice(1));
+                modPath = fsPath.join(projectNodeModulesDir, ...tokens);
             }
         }
 
