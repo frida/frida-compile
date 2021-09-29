@@ -92,6 +92,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         processedModules.add(entry);
 
         let modPath: string;
+        let needsAlias = false;
         if (fsPath.isAbsolute(entry)) {
             modPath = entry;
         } else {
@@ -105,7 +106,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                 } else {
                     modPath = fsPath.join(shimPath, ...tokens.slice(1));
                 }
-                aliases.set("/shims" + shimPath.substr(shimDir.length).replace("\\", "/"), entry);
+                needsAlias = true;
             } else {
                 modPath = fsPath.join(projectNodeModulesDir, pkgName, ...tokens.slice(1));
             }
@@ -121,9 +122,8 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                     pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
                 }
 
-                aliases.set(pkgEntrypoint.substr(projectRoot.length), entry);
-
                 modPath = pkgEntrypoint;
+                needsAlias = true;
             } else {
                 modPath = fsPath.join(modPath, "index.js");
             }
@@ -135,6 +135,18 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                 console.log("Assuming built-in:", entry);
                 continue;
             }
+        }
+
+        if (needsAlias) {
+            let assetSubPath: string;
+            if (modPath.startsWith(projectNodeModulesDir)) {
+                assetSubPath = modPath.substr(projectRoot.length + 1);
+            } else if (modPath.startsWith(compilerNodeModulesDir)) {
+                assetSubPath = modPath.substr(compilerRoot.length + 1);
+            } else {
+                assetSubPath = fsPath.join("shims", modPath.substr(shimDir.length + 1));
+            }
+            aliases.set("/" + assetSubPath.replace("\\", "/"), entry);
         }
 
         const sourceFile = compilerHost.getSourceFile(modPath, ts.ScriptTarget.ES2020)!;
@@ -175,6 +187,11 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     for (const [path, mod] of modules) {
         if (path.startsWith(projectNodeModulesDir)) {
             const assetName = path.substr(projectRoot.length);
+            if (!output.has(assetName)) {
+                output.set(assetName, mod.file.text);
+            }
+        } else if (path.startsWith(compilerNodeModulesDir)) {
+            const assetName = path.substr(compilerRoot.length);
             if (!output.has(assetName)) {
                 output.set(assetName, mod.file.text);
             }
