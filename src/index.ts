@@ -15,6 +15,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         ["@frida/base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
         ["@frida/ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
         ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
+        ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
         ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
         ["supports-color", fsPath.join(shimDir, "supports-color.js")],
     ]);
