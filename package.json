@@ -10,6 +10,7 @@
     "@frida/os": "^1.0.0",
     "@frida/path": "^2.0.1",
     "@frida/util": "^1.0.0",
+    "@frida/vm": "^2.0.0",
     "frida-fs": "^4.0.0"
   },
   "devDependencies": {

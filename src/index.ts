@@ -21,6 +21,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         ["path", fsPath.join(compilerNodeModulesDir, "@frida", "path")],
         ["supports-color", fsPath.join(shimDir, "supports-color.js")],
         ["util", fsPath.join(compilerNodeModulesDir, "@frida", "util")],
+        ["vm", fsPath.join(compilerNodeModulesDir, "@frida", "vm")],
     ]);
 
     const output = new Map<string, string>();
