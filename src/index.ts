@@ -14,6 +14,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const shims = new Map([
         ["@frida/base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
         ["@frida/ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
+        ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
         ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
         ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
         ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
