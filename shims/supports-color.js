@@ -11,3 +11,9 @@ export function supportsColor(stream) {
 
 export const stdout = caps;
 export const stderr = caps;
+
+export default {
+  supportsColor,
+  stdout,
+  stderr,
+};
