@@ -403,12 +403,11 @@ function useStrictRemovalTransformer(): ts.TransformerFactory<ts.SourceFile> {
 function jsonToModule(json: string): string {
     const result: string[] = [];
 
-    let identifier = "d";
-
     const data = JSON.parse(json);
     if (typeof data === "object" && data !== null) {
         const obj: [string, any] = data;
 
+        let identifier = "d";
         let candidate = identifier;
         let serial = 1;
         while (obj.hasOwnProperty(candidate)) {
