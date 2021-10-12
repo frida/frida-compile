@@ -16,6 +16,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         ["@frida/ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
         ["@frida/punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
         ["@frida/querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
+        ["@frida/readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
         ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
         ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
         ["diagnostics_channel", fsPath.join(compilerNodeModulesDir, "@frida", "diagnostics_channel")],
