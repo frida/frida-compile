@@ -14,6 +14,7 @@
     "@frida/os": "^1.0.0",
     "@frida/path": "^2.0.1",
     "@frida/readable-stream": "^4.0.0",
+    "@frida/stream": "^1.0.0",
     "@frida/timers": "^3.0.0",
     "@frida/url": "^1.0.0",
     "@frida/util": "^1.0.0",

@@ -28,7 +28,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         ["punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
         ["querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
         ["readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
-        ["stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
+        ["stream", fsPath.join(compilerNodeModulesDir, "@frida", "stream")],
         ["supports-color", fsPath.join(shimDir, "supports-color.js")],
         ["timers", fsPath.join(compilerNodeModulesDir, "@frida", "timers")],
         ["url", fsPath.join(compilerNodeModulesDir, "@frida", "url")],
