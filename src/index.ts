@@ -328,6 +328,7 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
             visitImportDeclaration(node);
         } else if (ts.isCallExpression(node)) {
             visitCallExpression(node);
+            ts.forEachChild(node, visit);
         } else {
             ts.forEachChild(node, visit);
         }
