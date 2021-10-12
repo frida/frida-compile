@@ -13,6 +13,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const shimDir = fsPath.join(compilerRoot, "shims");
     const shims = new Map([
         ["@frida/base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
+        ["@frida/http-parser", fsPath.join(compilerNodeModulesDir, "@frida", "http-parser")],
         ["@frida/ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
         ["@frida/punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
         ["@frida/querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
