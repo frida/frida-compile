@@ -9,6 +9,7 @@
     "@frida/buffer": "^7.0.0",
     "@frida/diagnostics_channel": "^1.0.0",
     "@frida/events": "^4.0.0",
+    "@frida/net": "^4.0.0",
     "@frida/os": "^1.0.0",
     "@frida/path": "^2.0.1",
     "@frida/readable-stream": "^4.0.0",
