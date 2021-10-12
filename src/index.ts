@@ -18,6 +18,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         ["@frida/querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
         ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
         ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
+        ["diagnostics_channel", fsPath.join(compilerNodeModulesDir, "@frida", "diagnostics_channel")],
         ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
         ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
         ["os", fsPath.join(compilerNodeModulesDir, "@frida", "os")],
