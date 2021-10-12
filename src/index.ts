@@ -328,6 +328,8 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
     function visit(node: ts.Node) {
         if (ts.isImportDeclaration(node)) {
             visitImportDeclaration(node);
+        } else if (ts.isExportDeclaration(node)) {
+            visitExportDeclaration(node);
         } else if (ts.isCallExpression(node)) {
             visitCallExpression(node);
             ts.forEachChild(node, visit);
@@ -338,6 +340,16 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
 
     function visitImportDeclaration(imp: ts.ImportDeclaration) {
         const depName = (imp.moduleSpecifier as ts.StringLiteral).text;
+        maybeAddModuleToPending(depName);
+    }
+
+    function visitExportDeclaration(exp: ts.ExportDeclaration) {
+        const specifier = exp.moduleSpecifier;
+        if (specifier === undefined) {
+            return;
+        }
+
+        const depName = (specifier as ts.StringLiteral).text;
         maybeAddModuleToPending(depName);
     }
 
