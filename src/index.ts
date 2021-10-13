@@ -122,7 +122,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
 
             let pkgName: string;
             let subPath: string[];
-            if (tokens[0] === "@frida") {
+            if (tokens[0].startsWith("@")) {
                 pkgName = tokens[0] + "/" + tokens[1];
                 subPath = tokens.slice(2);
             } else {
@@ -140,6 +140,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                 needsAlias = true;
             } else {
                 modPath = fsPath.join(projectNodeModulesDir, ...tokens);
+                needsAlias = subPath.length > 0;
             }
         }
 
