@@ -12,18 +12,16 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
     const shimDir = fsPath.join(compilerRoot, "shims");
     const shims = new Map([
-        ["@frida/base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
-        ["@frida/http-parser", fsPath.join(compilerNodeModulesDir, "@frida", "http-parser")],
-        ["@frida/ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
-        ["@frida/punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
-        ["@frida/querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
-        ["@frida/readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
         ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
+        ["base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
         ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
         ["diagnostics_channel", fsPath.join(compilerNodeModulesDir, "@frida", "diagnostics_channel")],
         ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
         ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
         ["http", fsPath.join(compilerNodeModulesDir, "@frida", "http")],
+        ["https", fsPath.join(compilerNodeModulesDir, "@frida", "https")],
+        ["http-parser-js", fsPath.join(compilerNodeModulesDir, "@frida", "http-parser-js")],
+        ["ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
         ["net", fsPath.join(compilerNodeModulesDir, "@frida", "net")],
         ["os", fsPath.join(compilerNodeModulesDir, "@frida", "os")],
         ["path", fsPath.join(compilerNodeModulesDir, "@frida", "path")],
