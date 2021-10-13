@@ -41,6 +41,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     const aliases = new Map<string, string>();
     const pendingModules = new Set<string>();
     const processedModules = new Set<string>();
+    const jsonFilePaths = new Set<string>();
     const modules = new Map<string, JSModule>();
 
     let sys: ts.System;
@@ -103,7 +104,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
                 file: sf
             };
             modules.set(fileName, mod);
-            processJSModule(mod, processedModules, pendingModules);
+            processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
         }
     }
 
@@ -188,7 +189,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         };
         modules.set(modPath, mod);
 
-        processJSModule(mod, processedModules, pendingModules);
+        processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
     }
 
     program.emit(undefined, undefined, undefined, undefined, {
@@ -215,19 +216,16 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
     }
 
     for (const [path, mod] of modules) {
-        if (path.startsWith(projectNodeModulesDir)) {
-            const assetName = path.substr(projectRoot.length);
-            if (!output.has(assetName)) {
-                output.set(assetName, mod.file.text);
-            }
-        } else if (path.startsWith(compilerNodeModulesDir)) {
-            const assetName = path.substr(compilerRoot.length);
-            if (!output.has(assetName)) {
-                output.set(assetName, mod.file.text);
-            }
-        } else if (path.startsWith(shimDir)) {
-            const assetName = "/shims" + path.substr(shimDir.length);
+        const assetName = assetNameFromFilePath(path);
+        if (!output.has(assetName)) {
             output.set(assetName, mod.file.text);
+        }
+    }
+
+    for (const path of jsonFilePaths) {
+        const assetName = assetNameFromFilePath(path);
+        if (!output.has(assetName)) {
+            output.set(assetName, sys.readFile(path)!);
         }
     }
 
@@ -288,6 +286,22 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
 
     const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
     sys.writeFile(fullOutputPath, chunks.join(""), false);
+
+    function assetNameFromFilePath(path: string): string {
+        if (path.startsWith(shimDir)) {
+            return "/shims" + path.substr(shimDir.length);
+        }
+
+        if (path.startsWith(compilerRoot)) {
+            return path.substr(compilerRoot.length);
+        }
+
+        if (path.startsWith(projectRoot)) {
+            return path.substr(projectRoot.length);
+        }
+
+        throw new Error(`unexpected file path: ${path}`);
+    }
 }
 
 type ModuleType = "cjs" | "esm";
@@ -320,7 +334,7 @@ function detectModuleType(modPath: string, sys: ts.System): ModuleType {
     return "cjs";
 }
 
-function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: Set<string>): void {
+function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: Set<string>, jsonFilePaths: Set<string>): void {
     const moduleDir = fsPath.dirname(mod.path);
     ts.forEachChild(mod.file, visit);
 
@@ -376,17 +390,18 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
     }
 
     function maybeAddModuleToPending(name: string) {
-        if (name.endsWith(".json")) {
-            return;
-        }
+        const path = resolveAssetReference(name);
 
-        const path = resolveModule(name);
-        if (!processedModules.has(path)) {
-            pendingModules.add(path);
+        if (name.endsWith(".json")) {
+            jsonFilePaths.add(path)
+        } else {
+            if (!processedModules.has(path)) {
+                pendingModules.add(path);
+            }
         }
     }
 
-    function resolveModule(name: string): string {
+    function resolveAssetReference(name: string): string {
         if (name.startsWith(".")) {
             return fsPath.join(moduleDir, name);
         } else {
