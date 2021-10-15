@@ -17,6 +17,7 @@
     "@frida/net": "^4.0.0",
     "@frida/os": "^1.0.0",
     "@frida/path": "^2.0.1",
+    "@frida/process": "^1.0.0",
     "@frida/punycode": "^3.0.0",
     "@frida/querystring": "^1.0.0",
     "@frida/readable-stream": "^4.1.0",

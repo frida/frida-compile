@@ -25,6 +25,7 @@ export async function build(projectRoot: string, inputPath: string, outputPath: 
         ["net", fsPath.join(compilerNodeModulesDir, "@frida", "net")],
         ["os", fsPath.join(compilerNodeModulesDir, "@frida", "os")],
         ["path", fsPath.join(compilerNodeModulesDir, "@frida", "path")],
+        ["process", fsPath.join(compilerNodeModulesDir, "@frida", "process")],
         ["punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
         ["querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
         ["readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
