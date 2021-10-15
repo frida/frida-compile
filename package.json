@@ -21,6 +21,7 @@
     "@frida/querystring": "^1.0.0",
     "@frida/readable-stream": "^4.1.0",
     "@frida/stream": "^1.0.1",
+    "@frida/string_decoder": "^2.0.0",
     "@frida/timers": "^3.0.0",
     "@frida/tty": "^1.0.0",
     "@frida/url": "^1.0.1",
