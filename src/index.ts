@@ -4,8 +4,6 @@ import { FridaSystem } from "./system.js";
 import ts from "../ext/TypeScript/built/local/typescript.js";
 
 export async function build(projectRoot: string, inputPath: string, outputPath: string): Promise<void> {
-    const t1 = Date.now();
-
     const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
     const compilerRoot = "/Users/oleavr/src/frida-compile"; // FIXME
     const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
