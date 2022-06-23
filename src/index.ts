@@ -3,9 +3,11 @@ import fsPath from "path";
 import { FridaSystem } from "./system.js";
 import ts from "../ext/TypeScript/built/local/typescript.js";
 
+const compilerUrl = import.meta.url;
+const compilerRoot = fsPath.dirname(fsPath.dirname(compilerUrl.substring(7)));
+
 export async function build(projectRoot: string, inputPath: string, outputPath: string): Promise<void> {
     const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
-    const compilerRoot = "/Users/oleavr/src/frida-compile"; // FIXME
     const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
     const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
     const shimDir = fsPath.join(compilerRoot, "shims");
@@ -497,8 +499,3 @@ class FridaConfigFileHost implements ts.ParseConfigFileHost {
     onUnRecoverableConfigFileDiagnostic(diagnostic: ts.Diagnostic) {
     }
 }
-
-build("/Users/oleavr/src/hello-frida", "agent/index.ts", "_agent.js")
-    .catch(e => {
-        console.error(e.stack);
-    });

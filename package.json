@@ -4,6 +4,7 @@
   "description": "Compile a Frida script comprised of one or more Node.js modules",
   "main": "dist/index.js",
   "type": "module",
+  "bin": "dist/cli.js",
   "dependencies": {
     "@frida/assert": "^3.0.1",
     "@frida/base64-js": "^2.0.3",
