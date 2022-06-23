@@ -49,6 +49,7 @@ export async function build(options: BuildOptions): Promise<void> {
     ]);
 
     const output = new Map<string, string>();
+    const origins = new Map<string, string>();
     const aliases = new Map<string, string>();
     const pendingModules = new Set<string>();
     const processedModules = new Set<string>();
@@ -85,6 +86,9 @@ export async function build(options: BuildOptions): Promise<void> {
     const compilerHost = ts.createIncrementalCompilerHost(tsOptions, sys);
     compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
         output.set(fileName, data);
+        if (fileName.endsWith(".js")) {
+            origins.set(fileName, sourceFiles![0].fileName);
+        }
     };
 
     const entrypoint = fsPath.isAbsolute(inputPath) ? inputPath : fsPath.join(projectRoot, inputPath);
@@ -116,7 +120,6 @@ export async function build(options: BuildOptions): Promise<void> {
                 path: fileName,
                 file: sf
             };
-            modules.set(fileName, mod);
             processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
         }
     }
@@ -233,6 +236,7 @@ export async function build(options: BuildOptions): Promise<void> {
         const assetName = assetNameFromFilePath(path);
         if (!output.has(assetName)) {
             output.set(assetName, mod.file.text);
+            origins.set(assetName, path);
         }
     }
 
@@ -256,15 +260,15 @@ export async function build(options: BuildOptions): Promise<void> {
             }
 
             if (compression === "terser") {
-                let inputName = name;
                 const mapName = name + ".map";
-                const inputMap = output.get(mapName);
-                if (inputMap !== undefined) {
-                    inputName = JSON.parse(inputMap).sources[0];
-                }
+
+                const originName = origins.get(name)!;
+                const filenameStart = originName.lastIndexOf("/") + 1;
+                const filename = originName.substring(filenameStart);
+                const root = originName.substring(0, filenameStart);
 
                 const minifySources: { [name: string]: string } = {};
-                minifySources[inputName] = code;
+                minifySources[filename] = code;
 
                 const minifyOpts: MinifyOptions = {
                     ecma: 2020,
@@ -277,15 +281,12 @@ export async function build(options: BuildOptions): Promise<void> {
                 };
 
                 if (sourceMaps === "included") {
-                    const filenameStart = name.lastIndexOf("/") + 1;
-                    const filename = name.substring(filenameStart);
-                    const root = name.substring(0, filenameStart);
-
                     const mapOpts: SourceMapOptions = {
                         root,
-                        filename,
+                        filename: name,
                     };
 
+                    const inputMap = output.get(mapName);
                     if (inputMap !== undefined) {
                         mapOpts.content = inputMap;
                     }
