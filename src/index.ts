@@ -1,4 +1,4 @@
-import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/index.js";
+import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/esm/index.js";
 import fsPath from "path";
 import { FridaSystem } from "./system.js";
 import ts from "../ext/TypeScript/built/local/typescript.js";
