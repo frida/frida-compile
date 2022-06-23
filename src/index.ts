@@ -1,7 +1,7 @@
 import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/esm/index.js";
 import fsPath from "path";
 import { FridaSystem } from "./system.js";
-import { minify, MinifyOptions } from "terser";
+import { minify, MinifyOptions, SourceMapOptions } from "terser";
 import ts from "../ext/TypeScript/built/local/typescript.js";
 
 const compilerUrl = import.meta.url;
@@ -84,7 +84,6 @@ export async function build(options: BuildOptions): Promise<void> {
 
     const compilerHost = ts.createIncrementalCompilerHost(tsOptions, sys);
     compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        console.log("write:", fileName);
         output.set(fileName, data);
     };
 
@@ -257,31 +256,48 @@ export async function build(options: BuildOptions): Promise<void> {
             }
 
             if (compression === "terser") {
-                const minifyOptions: MinifyOptions = {};
-
+                let inputName = name;
                 const mapName = name + ".map";
-
-                const inputMap = output.get(mapName) ?? null;
-                console.log("\n===");
-                console.log("name:", name);
-                console.log("inputMap:", inputMap);
-                if (inputMap !== null) {
-                    minifyOptions.sourceMap = {
-                        content: inputMap
-                    };
-                } else {
-                    minifyOptions.sourceMap = false;
+                const inputMap = output.get(mapName);
+                if (inputMap !== undefined) {
+                    inputName = JSON.parse(inputMap).sources[0];
                 }
-                
-                const result = await minify(code, { sourceMap: true });
+
+                const minifySources: { [name: string]: string } = {};
+                minifySources[inputName] = code;
+
+                const minifyOpts: MinifyOptions = {
+                    ecma: 2020,
+                    compress: {
+                        module: true,
+                    },
+                    mangle: {
+                        module: true,
+                    },
+                };
+
+                if (sourceMaps === "included") {
+                    const filenameStart = name.lastIndexOf("/") + 1;
+                    const filename = name.substring(filenameStart);
+                    const root = name.substring(0, filenameStart);
+
+                    const mapOpts: SourceMapOptions = {
+                        root,
+                        filename,
+                    };
+
+                    if (inputMap !== undefined) {
+                        mapOpts.content = inputMap;
+                    }
+
+                    minifyOpts.sourceMap = mapOpts;
+                }
+
+                const result = await minify(minifySources, minifyOpts);
                 code = result.code!;
 
                 if (sourceMaps === "included") {
-                    const outputMap = result.map;
-                    console.log("outputMap:", outputMap);
-                    if (outputMap !== undefined) {
-                        output.set(mapName, outputMap as string);
-                    }
+                    output.set(mapName, result.map as string);
                 }
             }
 

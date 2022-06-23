@@ -13,7 +13,6 @@ async function main() {
     program.parse();
 
     const opts = program.opts();
-    console.log("opts:", opts);
 
     await build({
         projectRoot: process.cwd(),
