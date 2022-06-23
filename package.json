@@ -30,7 +30,8 @@
     "@frida/util": "^1.0.0",
     "@frida/vm": "^2.0.0",
     "commander": "^9.3.0",
-    "frida-fs": "^4.0.0"
+    "frida-fs": "^4.0.0",
+    "terser": "^5.14.1"
   },
   "devDependencies": {
     "@types/frida-gum": "^17.1.0",
