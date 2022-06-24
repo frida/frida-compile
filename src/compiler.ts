@@ -7,46 +7,15 @@ import ts from "../ext/TypeScript/built/local/typescript.js";
 const compilerUrl = import.meta.url;
 const compilerRoot = fsPath.dirname(fsPath.dirname(compilerUrl.substring(7)));
 
-export async function build(options: CompilerOptions): Promise<void> {
+export async function build(options: Options): Promise<void> {
     const {
         projectRoot,
-        inputPath,
         outputPath,
         sourceMaps = "included",
         compression = "none",
     } = options;
 
-    const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
-    const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
-    const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
-    const shimDir = fsPath.join(compilerRoot, "shims");
-    const shims = new Map([
-        ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
-        ["base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
-        ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
-        ["diagnostics_channel", fsPath.join(compilerNodeModulesDir, "@frida", "diagnostics_channel")],
-        ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
-        ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
-        ["http", fsPath.join(compilerNodeModulesDir, "@frida", "http")],
-        ["https", fsPath.join(compilerNodeModulesDir, "@frida", "https")],
-        ["http-parser-js", fsPath.join(compilerNodeModulesDir, "@frida", "http-parser-js")],
-        ["ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
-        ["net", fsPath.join(compilerNodeModulesDir, "@frida", "net")],
-        ["os", fsPath.join(compilerNodeModulesDir, "@frida", "os")],
-        ["path", fsPath.join(compilerNodeModulesDir, "@frida", "path")],
-        ["process", fsPath.join(compilerNodeModulesDir, "@frida", "process")],
-        ["punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
-        ["querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
-        ["readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
-        ["stream", fsPath.join(compilerNodeModulesDir, "@frida", "stream")],
-        ["string_decoder", fsPath.join(compilerNodeModulesDir, "@frida", "string_decoder")],
-        ["supports-color", fsPath.join(shimDir, "supports-color.js")],
-        ["timers", fsPath.join(compilerNodeModulesDir, "@frida", "timers")],
-        ["tty", fsPath.join(compilerNodeModulesDir, "@frida", "tty")],
-        ["url", fsPath.join(compilerNodeModulesDir, "@frida", "url")],
-        ["util", fsPath.join(compilerNodeModulesDir, "@frida", "util")],
-        ["vm", fsPath.join(compilerNodeModulesDir, "@frida", "vm")],
-    ]);
+    const entrypoint = deriveEntrypoint(options);
 
     const output = new Map<string, string>();
     const origins = new Map<string, string>();
@@ -56,34 +25,11 @@ export async function build(options: CompilerOptions): Promise<void> {
     const jsonFilePaths = new Set<string>();
     const modules = new Map<string, JSModule>();
 
-    let sys: ts.System;
-    if (typeof Frida !== "undefined") {
-        sys = new FridaSystem(projectRoot, libDir);
-    } else {
-        sys = ts.sys;
-    }
+    const assets = getAssets(options);
+    const sys = makeSystem(assets, options);
 
-    const configFileHost = new FridaConfigFileHost(projectRoot, sys);
-
-    const defaultTsOptions: ts.CompilerOptions = {
-        target: ts.ScriptTarget.ES2020,
-        module: ts.ModuleKind.ES2020,
-        resolveJsonModule: true,
-        allowJs: true,
-        strict: true
-    };
-
-    const tsOptions = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)!.options;
-    delete tsOptions.noEmit;
-    tsOptions.rootDir = projectRoot;
-    tsOptions.outDir = "/";
-    tsOptions.sourceRoot = projectRoot;
-    if (sourceMaps === "included") {
-        tsOptions.sourceMap = true;
-        tsOptions.inlineSourceMap = false;
-    }
-
-    const compilerHost = ts.createIncrementalCompilerHost(tsOptions, sys);
+    const compilerOpts = makeCompilerOptions(sys, options);
+    const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, sys);
     compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
         output.set(fileName, data);
         if (fileName.endsWith(".js")) {
@@ -91,14 +37,9 @@ export async function build(options: CompilerOptions): Promise<void> {
         }
     };
 
-    const entrypoint = fsPath.isAbsolute(inputPath) ? inputPath : fsPath.join(projectRoot, inputPath);
-    if (!entrypoint.startsWith(projectRoot)) {
-        throw new Error("Entrypoint must be inside the project root");
-    }
-
     const program = ts.createProgram({
         rootNames: [entrypoint],
-        options: tsOptions,
+        options: compilerOpts,
         host: compilerHost
     });
 
@@ -146,7 +87,7 @@ export async function build(options: CompilerOptions): Promise<void> {
                 subPath = tokens.slice(1);
             }
 
-            const shimPath = shims.get(pkgName);
+            const shimPath = assets.shims.get(pkgName);
             if (shimPath !== undefined) {
                 if (shimPath.endsWith(".js")) {
                     modPath = shimPath;
@@ -155,7 +96,7 @@ export async function build(options: CompilerOptions): Promise<void> {
                 }
                 needsAlias = true;
             } else {
-                modPath = fsPath.join(projectNodeModulesDir, ...tokens);
+                modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
                 needsAlias = subPath.length > 0;
             }
         }
@@ -187,12 +128,12 @@ export async function build(options: CompilerOptions): Promise<void> {
 
         if (needsAlias) {
             let assetSubPath: string;
-            if (modPath.startsWith(projectNodeModulesDir)) {
+            if (modPath.startsWith(assets.projectNodeModulesDir)) {
                 assetSubPath = modPath.substring(projectRoot.length + 1);
-            } else if (modPath.startsWith(compilerNodeModulesDir)) {
+            } else if (modPath.startsWith(assets.compilerNodeModulesDir)) {
                 assetSubPath = modPath.substring(compilerRoot.length + 1);
             } else {
-                assetSubPath = fsPath.join("shims", modPath.substring(shimDir.length + 1));
+                assetSubPath = fsPath.join("shims", modPath.substring(assets.shimDir.length + 1));
             }
             aliases.set("/" + assetSubPath.replace("\\", "/"), entry);
         }
@@ -356,6 +297,7 @@ export async function build(options: CompilerOptions): Promise<void> {
     sys.writeFile(fullOutputPath, chunks.join(""), false);
 
     function assetNameFromFilePath(path: string): string {
+        const { shimDir } = assets;
         if (path.startsWith(shimDir)) {
             return "/shims" + path.substring(shimDir.length);
         }
@@ -372,10 +314,17 @@ export async function build(options: CompilerOptions): Promise<void> {
     }
 }
 
-export async function watch(options: CompilerOptions): Promise<void> {
+export async function watch(options: Options): Promise<void> {
+    const entrypoint = deriveEntrypoint(options);
+
+    const assets = getAssets(options);
+    const sys = makeSystem(assets, options);
+
+    const compilerOpts = makeCompilerOptions(sys, options);
+    const compilerHost = ts.createWatchCompilerHost([entrypoint], compilerOpts, sys);
 }
 
-export interface CompilerOptions {
+export interface Options {
     projectRoot: string;
     inputPath: string;
     outputPath: string;
@@ -389,6 +338,103 @@ interface JSModule {
     type: ModuleType;
     path: string;
     file: ts.SourceFile;
+}
+
+function deriveEntrypoint(options: Options): string {
+    const { projectRoot, inputPath } = options;
+
+    const entrypoint = fsPath.isAbsolute(inputPath) ? inputPath : fsPath.join(projectRoot, inputPath);
+    if (!entrypoint.startsWith(projectRoot)) {
+        throw new Error("Entrypoint must be inside the project root");
+    }
+
+    return entrypoint;
+}
+
+function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOptions {
+    const { projectRoot } = options;
+
+    const defaultTsOptions: ts.CompilerOptions = {
+        target: ts.ScriptTarget.ES2020,
+        module: ts.ModuleKind.ES2020,
+        resolveJsonModule: true,
+        allowJs: true,
+        strict: true
+    };
+
+    const configFileHost = new FridaConfigFileHost(projectRoot, system);
+
+    const opts = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)!.options;
+    delete opts.noEmit;
+    opts.rootDir = projectRoot;
+    opts.outDir = "/";
+    opts.sourceRoot = projectRoot;
+    if (options.sourceMaps === "included") {
+        opts.sourceMap = true;
+        opts.inlineSourceMap = false;
+    }
+    return opts;
+}
+
+function getAssets(options: Options): Assets {
+    const projectNodeModulesDir = fsPath.join(options.projectRoot, "node_modules");
+    const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
+    const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
+    const shimDir = fsPath.join(compilerRoot, "shims");
+
+    const shims = new Map([
+        ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
+        ["base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
+        ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
+        ["diagnostics_channel", fsPath.join(compilerNodeModulesDir, "@frida", "diagnostics_channel")],
+        ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
+        ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
+        ["http", fsPath.join(compilerNodeModulesDir, "@frida", "http")],
+        ["https", fsPath.join(compilerNodeModulesDir, "@frida", "https")],
+        ["http-parser-js", fsPath.join(compilerNodeModulesDir, "@frida", "http-parser-js")],
+        ["ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
+        ["net", fsPath.join(compilerNodeModulesDir, "@frida", "net")],
+        ["os", fsPath.join(compilerNodeModulesDir, "@frida", "os")],
+        ["path", fsPath.join(compilerNodeModulesDir, "@frida", "path")],
+        ["process", fsPath.join(compilerNodeModulesDir, "@frida", "process")],
+        ["punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
+        ["querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
+        ["readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
+        ["stream", fsPath.join(compilerNodeModulesDir, "@frida", "stream")],
+        ["string_decoder", fsPath.join(compilerNodeModulesDir, "@frida", "string_decoder")],
+        ["supports-color", fsPath.join(shimDir, "supports-color.js")],
+        ["timers", fsPath.join(compilerNodeModulesDir, "@frida", "timers")],
+        ["tty", fsPath.join(compilerNodeModulesDir, "@frida", "tty")],
+        ["url", fsPath.join(compilerNodeModulesDir, "@frida", "url")],
+        ["util", fsPath.join(compilerNodeModulesDir, "@frida", "util")],
+        ["vm", fsPath.join(compilerNodeModulesDir, "@frida", "vm")],
+    ]);
+
+    return {
+        projectNodeModulesDir,
+        compilerNodeModulesDir,
+        libDir,
+        shimDir,
+        shims,
+    };
+}
+
+interface Assets {
+    projectNodeModulesDir: string;
+    compilerNodeModulesDir: string;
+    libDir: string;
+    shimDir: string;
+    shims: Map<string, string>;
+}
+
+function makeSystem(assets: Assets, options: Options): ts.System {
+    let sys: ts.System;
+    if (typeof Frida !== "undefined") {
+        sys = new FridaSystem(options.projectRoot, assets.libDir);
+    } else {
+        sys = ts.sys;
+    }
+    return sys;
 }
 
 function detectModuleType(modPath: string, sys: ts.System): ModuleType {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { program } from "commander";
-import { build, watch, CompilerOptions } from "./compiler.js";
+import * as compiler from "./compiler.js";
 
 async function main() {
     program
@@ -14,7 +14,7 @@ async function main() {
     program.parse();
 
     const opts = program.opts();
-    const compilerOpts: CompilerOptions = {
+    const compilerOpts: compiler.Options = {
         projectRoot: process.cwd(),
         inputPath: program.args[0],
         outputPath: opts.output,
@@ -23,9 +23,9 @@ async function main() {
     };
 
     if (opts.watch) {
-        await watch(compilerOpts);
+        await compiler.watch(compilerOpts);
     } else {
-        await build(compilerOpts);
+        await compiler.build(compilerOpts);
     }
 }
 
