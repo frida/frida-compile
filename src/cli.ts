@@ -23,7 +23,7 @@ async function main() {
     };
 
     if (opts.watch) {
-        await compiler.watch(compilerOpts);
+        compiler.watch(compilerOpts);
     } else {
         await compiler.build(compilerOpts);
     }

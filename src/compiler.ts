@@ -29,10 +29,12 @@ export async function build(options: Options): Promise<void> {
 
     const bundler = createBundler(entrypoint, assets, sys, options);
 
+    program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
+
     await bundler.bundle(program);
 }
 
-export async function watch(options: Options): Promise<void> {
+export function watch(options: Options): void {
     const entrypoint = deriveEntrypoint(options);
     const assets = getAssets(options);
 
@@ -55,12 +57,16 @@ export async function watch(options: Options): Promise<void> {
     const bundler = createBundler(entrypoint, assets, sys, options);
 
     const origPostProgramCreate = compilerHost.afterProgramCreate!;
-    compilerHost.afterProgramCreate = program => {
+    compilerHost.afterProgramCreate = async program => {
         origPostProgramCreate(program);
-        //bundler.bundle(program);
+        try {
+            await bundler.bundle(program.getProgram());
+        } catch (e) {
+            console.error("Failed to bundle:", e);
+        }
     };
 
-    const program = ts.createWatchProgram(compilerHost);
+    ts.createWatchProgram(compilerHost);
 }
 
 export interface Options {
@@ -85,6 +91,7 @@ function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOp
     const defaultTsOptions: ts.CompilerOptions = {
         target: ts.ScriptTarget.ES2020,
         module: ts.ModuleKind.ES2020,
+        moduleResolution: ts.ModuleResolutionKind.NodeNext,
         resolveJsonModule: true,
         allowJs: true,
         strict: true
@@ -119,7 +126,23 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
     const processedModules = new Set<string>();
     const jsonFilePaths = new Set<string>();
     const modules = new Map<string, JSModule>();
+    const externalSources = new Map<string, ts.SourceFile>();
 
+    function getExternalSourceFile(path: string): ts.SourceFile {
+        let file = externalSources.get(path);
+        if (file !== undefined) {
+            return file;
+        }
+
+        const sourceText = sys.readFile(path, "utf-8");
+        if (sourceText === undefined) {
+            throw new Error(`Unable to open ${path}`);
+        }
+
+        return ts.createSourceFile(path, sourceText, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+    }
+
+    const origWriteFile = sys.writeFile;
     sys.writeFile = (path, data, writeByteOrderMark) => {
         output.set(path, data);
     };
@@ -222,9 +245,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     aliases.set("/" + assetSubPath.replace("\\", "/"), entry);
                 }
 
-                console.log("Trying to get:", modPath);
-                const sourceFile = program.getSourceFile(modPath)!;
-                console.log("sourceFile:", sourceFile)
+                const sourceFile = getExternalSourceFile(modPath);
 
                 const mod: JSModule = {
                     type: detectModuleType(modPath, sys),
@@ -236,10 +257,10 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
             }
 
-            program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
-
             const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
             if (legacyModules.length > 0) {
+                const opts = makeCompilerOptions(sys, options);
+                const host = ts.createIncrementalCompilerHost(opts, sys);
                 const p = ts.createProgram({
                     rootNames: legacyModules.map(m => m.path),
                     options: { ...options, allowJs: true },
@@ -371,7 +392,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
             }
 
             const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
-            sys.writeFile(fullOutputPath, chunks.join(""), false);
+            origWriteFile(fullOutputPath, chunks.join(""), false);
 
             function assetNameFromFilePath(path: string): string {
                 const { shimDir } = assets;
@@ -387,7 +408,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     return path.substring(projectRoot.length);
                 }
 
-                throw new Error(`unexpected file path: ${path}`);
+                throw new Error(`Unexpected file path: ${path}`);
             }
         }
     };
