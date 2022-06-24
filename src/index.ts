@@ -282,9 +282,10 @@ export async function build(options: BuildOptions): Promise<void> {
 
                 if (sourceMaps === "included") {
                     const mapOpts: SourceMapOptions = {
+                        asObject: true,
                         root,
                         filename: name,
-                    };
+                    } as SourceMapOptions;
 
                     const inputMap = output.get(mapName);
                     if (inputMap !== undefined) {
@@ -298,7 +299,10 @@ export async function build(options: BuildOptions): Promise<void> {
                 code = result.code!;
 
                 if (sourceMaps === "included") {
-                    output.set(mapName, result.map as string);
+                    const map = result.map as { [key: string]: any };
+                    const prefixLength: number = map.sourceRoot.length;
+                    map.sources = map.sources.map((s: string) => s.substring(prefixLength));
+                    output.set(mapName, JSON.stringify(map));
                 }
             }
 
