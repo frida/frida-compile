@@ -291,7 +291,6 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 if (!sys.fileExists(modPath)) {
                     modPath += ".js";
                     if (!sys.fileExists(modPath)) {
-                        console.log("Assuming built-in:", entry);
                         continue;
                     }
                 }
