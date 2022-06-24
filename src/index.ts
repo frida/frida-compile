@@ -260,15 +260,12 @@ export async function build(options: BuildOptions): Promise<void> {
             }
 
             if (compression === "terser") {
-                const mapName = name + ".map";
-
                 const originName = origins.get(name)!;
-                const filenameStart = originName.lastIndexOf("/") + 1;
-                const filename = originName.substring(filenameStart);
-                const root = originName.substring(0, filenameStart);
+                const originFilenameStart = originName.lastIndexOf("/") + 1;
+                const originFilename = originName.substring(originFilenameStart);
 
                 const minifySources: { [name: string]: string } = {};
-                minifySources[filename] = code;
+                minifySources[originFilename] = code;
 
                 const minifyOpts: MinifyOptions = {
                     ecma: 2020,
@@ -280,11 +277,13 @@ export async function build(options: BuildOptions): Promise<void> {
                     },
                 };
 
+                const mapName = name + ".map";
+
                 if (sourceMaps === "included") {
                     const mapOpts: SourceMapOptions = {
                         asObject: true,
-                        root,
-                        filename: name,
+                        root: originName.substring(0, originFilenameStart),
+                        filename: name.substring(name.lastIndexOf("/") + 1),
                     } as SourceMapOptions;
 
                     const inputMap = output.get(mapName);
