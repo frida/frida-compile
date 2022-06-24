@@ -320,8 +320,12 @@ export async function watch(options: Options): Promise<void> {
     const assets = getAssets(options);
     const sys = makeSystem(assets, options);
 
+    const createProgram = ts.createEmitAndSemanticDiagnosticsBuilderProgram;
+
     const compilerOpts = makeCompilerOptions(sys, options);
-    const compilerHost = ts.createWatchCompilerHost([entrypoint], compilerOpts, sys);
+    const compilerHost = ts.createWatchCompilerHost([entrypoint], compilerOpts, sys, createProgram);
+
+    ts.createWatchProgram(compilerHost);
 }
 
 export interface Options {
