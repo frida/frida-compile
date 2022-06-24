@@ -2,330 +2,65 @@ import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/esm/index.js";
 import fsPath from "path";
 import { FridaSystem } from "./system.js";
 import { minify, MinifyOptions, SourceMapOptions } from "terser";
-import ts from "../ext/TypeScript/built/local/typescript.js";
+import ts, { EmitAndSemanticDiagnosticsBuilderProgram, isBundle } from "../ext/TypeScript/built/local/typescript.js";
 
 const compilerUrl = import.meta.url;
 const compilerRoot = fsPath.dirname(fsPath.dirname(compilerUrl.substring(7)));
 
+const sourceTransformers: ts.CustomTransformers = {
+    after: [
+        useStrictRemovalTransformer(),
+    ]
+};
+
 export async function build(options: Options): Promise<void> {
-    const {
-        projectRoot,
-        outputPath,
-        sourceMaps = "included",
-        compression = "none",
-    } = options;
-
     const entrypoint = deriveEntrypoint(options);
-
-    const output = new Map<string, string>();
-    const origins = new Map<string, string>();
-    const aliases = new Map<string, string>();
-    const pendingModules = new Set<string>();
-    const processedModules = new Set<string>();
-    const jsonFilePaths = new Set<string>();
-    const modules = new Map<string, JSModule>();
-
     const assets = getAssets(options);
-    const sys = makeSystem(assets, options);
 
+    const sys = makeSystem(assets, options);
     const compilerOpts = makeCompilerOptions(sys, options);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, sys);
-    compilerHost.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        output.set(fileName, data);
-        if (fileName.endsWith(".js")) {
-            origins.set(fileName, sourceFiles![0].fileName);
-        }
-    };
 
     const program = ts.createProgram({
-        rootNames: [entrypoint],
+        rootNames: [entrypoint.input],
         options: compilerOpts,
         host: compilerHost
     });
 
-    for (const sf of program.getSourceFiles()) {
-        if (!sf.isDeclarationFile) {
-            const fileName = sf.fileName;
-            const bareName = fileName.substring(0, fileName.lastIndexOf("."));
-            const outName = bareName + ".js";
-            processedModules.add(bareName);
-            processedModules.add(outName);
-        }
-    }
+    const bundler = createBundler(entrypoint, assets, sys, options);
 
-    for (const sf of program.getSourceFiles()) {
-        if (!sf.isDeclarationFile) {
-            const { fileName } = sf;
-            const mod: JSModule = {
-                type: "esm",
-                path: fileName,
-                file: sf
-            };
-            processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
-        }
-    }
-
-    while (pendingModules.size > 0) {
-        const entry: string = pendingModules.values().next().value;
-        pendingModules.delete(entry);
-        processedModules.add(entry);
-
-        let modPath: string;
-        let needsAlias = false;
-        if (fsPath.isAbsolute(entry)) {
-            modPath = entry;
-        } else {
-            const tokens = entry.split("/");
-
-            let pkgName: string;
-            let subPath: string[];
-            if (tokens[0].startsWith("@")) {
-                pkgName = tokens[0] + "/" + tokens[1];
-                subPath = tokens.slice(2);
-            } else {
-                pkgName = tokens[0];
-                subPath = tokens.slice(1);
-            }
-
-            const shimPath = assets.shims.get(pkgName);
-            if (shimPath !== undefined) {
-                if (shimPath.endsWith(".js")) {
-                    modPath = shimPath;
-                } else {
-                    modPath = fsPath.join(shimPath, ...subPath);
-                }
-                needsAlias = true;
-            } else {
-                modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
-                needsAlias = subPath.length > 0;
-            }
-        }
-
-        if (sys.directoryExists(modPath)) {
-            const rawPkgMeta = sys.readFile(fsPath.join(modPath, "package.json"));
-            if (rawPkgMeta !== undefined) {
-                const pkgMeta = JSON.parse(rawPkgMeta);
-                const pkgMain = pkgMeta.main ?? "index.js";
-                let pkgEntrypoint = fsPath.join(modPath, pkgMain);
-                if (sys.directoryExists(pkgEntrypoint)) {
-                    pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
-                }
-
-                modPath = pkgEntrypoint;
-                needsAlias = true;
-            } else {
-                modPath = fsPath.join(modPath, "index.js");
-            }
-        }
-
-        if (!sys.fileExists(modPath)) {
-            modPath += ".js";
-            if (!sys.fileExists(modPath)) {
-                console.log("Assuming built-in:", entry);
-                continue;
-            }
-        }
-
-        if (needsAlias) {
-            let assetSubPath: string;
-            if (modPath.startsWith(assets.projectNodeModulesDir)) {
-                assetSubPath = modPath.substring(projectRoot.length + 1);
-            } else if (modPath.startsWith(assets.compilerNodeModulesDir)) {
-                assetSubPath = modPath.substring(compilerRoot.length + 1);
-            } else {
-                assetSubPath = fsPath.join("shims", modPath.substring(assets.shimDir.length + 1));
-            }
-            aliases.set("/" + assetSubPath.replace("\\", "/"), entry);
-        }
-
-        const sourceFile = compilerHost.getSourceFile(modPath, ts.ScriptTarget.ES2020)!;
-
-        const mod: JSModule = {
-            type: detectModuleType(modPath, sys),
-            path: modPath,
-            file: sourceFile
-        };
-        modules.set(modPath, mod);
-
-        processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
-    }
-
-    program.emit(undefined, undefined, undefined, undefined, {
-        after: [
-            useStrictRemovalTransformer(),
-        ]
-    });
-
-    const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
-    if (legacyModules.length > 0) {
-        const p = ts.createProgram({
-            rootNames: legacyModules.map(m => m.path),
-            options: { ...options, allowJs: true },
-            host: compilerHost
-        });
-        p.emit(undefined, undefined, undefined, undefined, {
-            before: [
-                cjsToEsmTransformer()
-            ],
-            after: [
-                useStrictRemovalTransformer()
-            ]
-        });
-    }
-
-    for (const [path, mod] of modules) {
-        const assetName = assetNameFromFilePath(path);
-        if (!output.has(assetName)) {
-            output.set(assetName, mod.file.text);
-            origins.set(assetName, path);
-        }
-    }
-
-    for (const path of jsonFilePaths) {
-        const assetName = assetNameFromFilePath(path);
-        if (!output.has(assetName)) {
-            output.set(assetName, sys.readFile(path)!);
-        }
-    }
-
-    for (const [name, data] of output) {
-        if (name.endsWith(".js")) {
-            let code = data;
-
-            const lines = code.split("\n");
-            const n = lines.length;
-            const lastLine = lines[n - 1];
-            if (lastLine.startsWith("//# sourceMappingURL=")) {
-                const precedingLines = lines.slice(0, n - 1);
-                code = precedingLines.join("\n");
-            }
-
-            if (compression === "terser") {
-                const originName = origins.get(name)!;
-                const originFilenameStart = originName.lastIndexOf("/") + 1;
-                const originFilename = originName.substring(originFilenameStart);
-
-                const minifySources: { [name: string]: string } = {};
-                minifySources[originFilename] = code;
-
-                const minifyOpts: MinifyOptions = {
-                    ecma: 2020,
-                    compress: {
-                        module: true,
-                    },
-                    mangle: {
-                        module: true,
-                    },
-                };
-
-                const mapName = name + ".map";
-
-                if (sourceMaps === "included") {
-                    const mapOpts: SourceMapOptions = {
-                        asObject: true,
-                        root: originName.substring(0, originFilenameStart),
-                        filename: name.substring(name.lastIndexOf("/") + 1),
-                    } as SourceMapOptions;
-
-                    const inputMap = output.get(mapName);
-                    if (inputMap !== undefined) {
-                        mapOpts.content = inputMap;
-                    }
-
-                    minifyOpts.sourceMap = mapOpts;
-                }
-
-                const result = await minify(minifySources, minifyOpts);
-                code = result.code!;
-
-                if (sourceMaps === "included") {
-                    const map = result.map as { [key: string]: any };
-                    const prefixLength: number = map.sourceRoot.length;
-                    map.sources = map.sources.map((s: string) => s.substring(prefixLength));
-                    output.set(mapName, JSON.stringify(map));
-                }
-            }
-
-            output.set(name, code);
-        } else if (name.endsWith(".json")) {
-            output.set(name, jsonToModule(data));
-        }
-    }
-
-    let entrypointName = entrypoint.substring(projectRoot.length);
-    if (entrypointName.endsWith(".ts")) {
-        entrypointName = entrypointName.substring(0, entrypointName.length - 2) + "js";
-    }
-
-    const names: string[] = [];
-    const namesInRawOrder = Array.from(output.keys());
-    const maps = new Set(namesInRawOrder.filter(name => name.endsWith(".map")));
-    for (const name of namesInRawOrder.filter(name => !name.endsWith(".map"))) {
-        let index = (name === entrypointName) ? 0 : names.length;
-
-        const mapName = name + ".map";
-        if (maps.has(mapName)) {
-            names.splice(index, 0, mapName);
-            index++;
-        }
-
-        names.splice(index, 0, name);
-    }
-
-    const chunks: string[] = [];
-    chunks.push("📦\n")
-    for (const name of names) {
-        const rawData = Buffer.from(output.get(name)!);
-        chunks.push(`${rawData.length} ${name}\n`);
-        const alias = aliases.get(name);
-        if (alias !== undefined) {
-            chunks.push(`↻ ${alias}\n`)
-        }
-    }
-    chunks.push("✄\n");
-    let i = 0;
-    for (const name of names) {
-        if (i !== 0) {
-            chunks.push("\n✄\n");
-        }
-        const data = output.get(name)!;
-        chunks.push(data);
-        i++;
-    }
-
-    const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
-    sys.writeFile(fullOutputPath, chunks.join(""), false);
-
-    function assetNameFromFilePath(path: string): string {
-        const { shimDir } = assets;
-        if (path.startsWith(shimDir)) {
-            return "/shims" + path.substring(shimDir.length);
-        }
-
-        if (path.startsWith(compilerRoot)) {
-            return path.substring(compilerRoot.length);
-        }
-
-        if (path.startsWith(projectRoot)) {
-            return path.substring(projectRoot.length);
-        }
-
-        throw new Error(`unexpected file path: ${path}`);
-    }
+    await bundler.bundle(program);
 }
 
 export async function watch(options: Options): Promise<void> {
     const entrypoint = deriveEntrypoint(options);
-
     const assets = getAssets(options);
+
+    const origCreateProgram: any = ts.createEmitAndSemanticDiagnosticsBuilderProgram;
+    const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (...args: any[]): ts.EmitAndSemanticDiagnosticsBuilderProgram => {
+        const program: ts.EmitAndSemanticDiagnosticsBuilderProgram = origCreateProgram(...args);
+
+        const origEmit = program.emit;
+        program.emit = (targetSourceFile, writeFile, cancellationToken, emitOnlyDtsFiles, customTransformers) => {
+            return origEmit(targetSourceFile, writeFile, cancellationToken, emitOnlyDtsFiles, sourceTransformers);
+        };
+
+        return program;
+    };
+
     const sys = makeSystem(assets, options);
-
-    const createProgram = ts.createEmitAndSemanticDiagnosticsBuilderProgram;
-
     const compilerOpts = makeCompilerOptions(sys, options);
-    const compilerHost = ts.createWatchCompilerHost([entrypoint], compilerOpts, sys, createProgram);
+    const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, sys, createProgram);
 
-    ts.createWatchProgram(compilerHost);
+    const bundler = createBundler(entrypoint, assets, sys, options);
+
+    const origPostProgramCreate = compilerHost.afterProgramCreate!;
+    compilerHost.afterProgramCreate = program => {
+        origPostProgramCreate(program);
+        //bundler.bundle(program);
+    };
+
+    const program = ts.createWatchProgram(compilerHost);
 }
 
 export interface Options {
@@ -342,17 +77,6 @@ interface JSModule {
     type: ModuleType;
     path: string;
     file: ts.SourceFile;
-}
-
-function deriveEntrypoint(options: Options): string {
-    const { projectRoot, inputPath } = options;
-
-    const entrypoint = fsPath.isAbsolute(inputPath) ? inputPath : fsPath.join(projectRoot, inputPath);
-    if (!entrypoint.startsWith(projectRoot)) {
-        throw new Error("Entrypoint must be inside the project root");
-    }
-
-    return entrypoint;
 }
 
 function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOptions {
@@ -378,6 +102,315 @@ function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOp
         opts.inlineSourceMap = false;
     }
     return opts;
+}
+
+function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.System, options: Options): Bundler {
+    const {
+        projectRoot,
+        outputPath,
+        sourceMaps = "included",
+        compression = "none",
+    } = options;
+
+    const output = new Map<string, string>();
+    const origins = new Map<string, string>();
+    const aliases = new Map<string, string>();
+    const pendingModules = new Set<string>();
+    const processedModules = new Set<string>();
+    const jsonFilePaths = new Set<string>();
+    const modules = new Map<string, JSModule>();
+
+    sys.writeFile = (path, data, writeByteOrderMark) => {
+        output.set(path, data);
+    };
+
+    return {
+        async bundle(program: ts.Program) {
+            for (const sf of program.getSourceFiles()) {
+                if (!sf.isDeclarationFile) {
+                    const fileName = sf.fileName;
+                    const bareName = fileName.substring(0, fileName.lastIndexOf("."));
+                    const outName = bareName + ".js";
+                    origins.set(fileName, outName);
+                    processedModules.add(bareName);
+                    processedModules.add(outName);
+                }
+            }
+
+            for (const sf of program.getSourceFiles()) {
+                if (!sf.isDeclarationFile) {
+                    const { fileName } = sf;
+                    const mod: JSModule = {
+                        type: "esm",
+                        path: fileName,
+                        file: sf
+                    };
+                    processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
+                }
+            }
+
+            while (pendingModules.size > 0) {
+                const entry: string = pendingModules.values().next().value;
+                pendingModules.delete(entry);
+                processedModules.add(entry);
+
+                let modPath: string;
+                let needsAlias = false;
+                if (fsPath.isAbsolute(entry)) {
+                    modPath = entry;
+                } else {
+                    const tokens = entry.split("/");
+
+                    let pkgName: string;
+                    let subPath: string[];
+                    if (tokens[0].startsWith("@")) {
+                        pkgName = tokens[0] + "/" + tokens[1];
+                        subPath = tokens.slice(2);
+                    } else {
+                        pkgName = tokens[0];
+                        subPath = tokens.slice(1);
+                    }
+
+                    const shimPath = assets.shims.get(pkgName);
+                    if (shimPath !== undefined) {
+                        if (shimPath.endsWith(".js")) {
+                            modPath = shimPath;
+                        } else {
+                            modPath = fsPath.join(shimPath, ...subPath);
+                        }
+                        needsAlias = true;
+                    } else {
+                        modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
+                        needsAlias = subPath.length > 0;
+                    }
+                }
+
+                if (sys.directoryExists(modPath)) {
+                    const rawPkgMeta = sys.readFile(fsPath.join(modPath, "package.json"));
+                    if (rawPkgMeta !== undefined) {
+                        const pkgMeta = JSON.parse(rawPkgMeta);
+                        const pkgMain = pkgMeta.main ?? "index.js";
+                        let pkgEntrypoint = fsPath.join(modPath, pkgMain);
+                        if (sys.directoryExists(pkgEntrypoint)) {
+                            pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
+                        }
+
+                        modPath = pkgEntrypoint;
+                        needsAlias = true;
+                    } else {
+                        modPath = fsPath.join(modPath, "index.js");
+                    }
+                }
+
+                if (!sys.fileExists(modPath)) {
+                    modPath += ".js";
+                    if (!sys.fileExists(modPath)) {
+                        console.log("Assuming built-in:", entry);
+                        continue;
+                    }
+                }
+
+                if (needsAlias) {
+                    let assetSubPath: string;
+                    if (modPath.startsWith(assets.projectNodeModulesDir)) {
+                        assetSubPath = modPath.substring(projectRoot.length + 1);
+                    } else if (modPath.startsWith(assets.compilerNodeModulesDir)) {
+                        assetSubPath = modPath.substring(compilerRoot.length + 1);
+                    } else {
+                        assetSubPath = fsPath.join("shims", modPath.substring(assets.shimDir.length + 1));
+                    }
+                    aliases.set("/" + assetSubPath.replace("\\", "/"), entry);
+                }
+
+                console.log("Trying to get:", modPath);
+                const sourceFile = program.getSourceFile(modPath)!;
+                console.log("sourceFile:", sourceFile)
+
+                const mod: JSModule = {
+                    type: detectModuleType(modPath, sys),
+                    path: modPath,
+                    file: sourceFile
+                };
+                modules.set(modPath, mod);
+
+                processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
+            }
+
+            program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
+
+            const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
+            if (legacyModules.length > 0) {
+                const p = ts.createProgram({
+                    rootNames: legacyModules.map(m => m.path),
+                    options: { ...options, allowJs: true },
+                    host
+                });
+                p.emit(undefined, undefined, undefined, undefined, {
+                    before: [
+                        cjsToEsmTransformer()
+                    ],
+                    after: [
+                        useStrictRemovalTransformer()
+                    ]
+                });
+            }
+
+            for (const [path, mod] of modules) {
+                const assetName = assetNameFromFilePath(path);
+                if (!output.has(assetName)) {
+                    output.set(assetName, mod.file.text);
+                    origins.set(assetName, path);
+                }
+            }
+
+            for (const path of jsonFilePaths) {
+                const assetName = assetNameFromFilePath(path);
+                if (!output.has(assetName)) {
+                    output.set(assetName, sys.readFile(path)!);
+                }
+            }
+
+            for (const [name, data] of output) {
+                if (name.endsWith(".js")) {
+                    let code = data;
+
+                    const lines = code.split("\n");
+                    const n = lines.length;
+                    const lastLine = lines[n - 1];
+                    if (lastLine.startsWith("//# sourceMappingURL=")) {
+                        const precedingLines = lines.slice(0, n - 1);
+                        code = precedingLines.join("\n");
+                    }
+
+                    if (compression === "terser") {
+                        const originName = origins.get(name)!;
+                        const originFilenameStart = originName.lastIndexOf("/") + 1;
+                        const originFilename = originName.substring(originFilenameStart);
+
+                        const minifySources: { [name: string]: string } = {};
+                        minifySources[originFilename] = code;
+
+                        const minifyOpts: MinifyOptions = {
+                            ecma: 2020,
+                            compress: {
+                                module: true,
+                            },
+                            mangle: {
+                                module: true,
+                            },
+                        };
+
+                        const mapName = name + ".map";
+
+                        if (sourceMaps === "included") {
+                            const mapOpts: SourceMapOptions = {
+                                asObject: true,
+                                root: originName.substring(0, originFilenameStart),
+                                filename: name.substring(name.lastIndexOf("/") + 1),
+                            } as SourceMapOptions;
+
+                            const inputMap = output.get(mapName);
+                            if (inputMap !== undefined) {
+                                mapOpts.content = inputMap;
+                            }
+
+                            minifyOpts.sourceMap = mapOpts;
+                        }
+
+                        const result = await minify(minifySources, minifyOpts);
+                        code = result.code!;
+
+                        if (sourceMaps === "included") {
+                            const map = result.map as { [key: string]: any };
+                            const prefixLength: number = map.sourceRoot.length;
+                            map.sources = map.sources.map((s: string) => s.substring(prefixLength));
+                            output.set(mapName, JSON.stringify(map));
+                        }
+                    }
+
+                    output.set(name, code);
+                } else if (name.endsWith(".json")) {
+                    output.set(name, jsonToModule(data));
+                }
+            }
+
+            const names: string[] = [];
+            const namesInRawOrder = Array.from(output.keys());
+            const maps = new Set(namesInRawOrder.filter(name => name.endsWith(".map")));
+            for (const name of namesInRawOrder.filter(name => !name.endsWith(".map"))) {
+                let index = (name === entrypoint.output) ? 0 : names.length;
+
+                const mapName = name + ".map";
+                if (maps.has(mapName)) {
+                    names.splice(index, 0, mapName);
+                    index++;
+                }
+
+                names.splice(index, 0, name);
+            }
+
+            const chunks: string[] = [];
+            chunks.push("📦\n")
+            for (const name of names) {
+                const rawData = Buffer.from(output.get(name)!);
+                chunks.push(`${rawData.length} ${name}\n`);
+                const alias = aliases.get(name);
+                if (alias !== undefined) {
+                    chunks.push(`↻ ${alias}\n`)
+                }
+            }
+            chunks.push("✄\n");
+            let i = 0;
+            for (const name of names) {
+                if (i !== 0) {
+                    chunks.push("\n✄\n");
+                }
+                const data = output.get(name)!;
+                chunks.push(data);
+                i++;
+            }
+
+            const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
+            sys.writeFile(fullOutputPath, chunks.join(""), false);
+
+            function assetNameFromFilePath(path: string): string {
+                const { shimDir } = assets;
+                if (path.startsWith(shimDir)) {
+                    return "/shims" + path.substring(shimDir.length);
+                }
+
+                if (path.startsWith(compilerRoot)) {
+                    return path.substring(compilerRoot.length);
+                }
+
+                if (path.startsWith(projectRoot)) {
+                    return path.substring(projectRoot.length);
+                }
+
+                throw new Error(`unexpected file path: ${path}`);
+            }
+        }
+    };
+}
+
+interface Bundler {
+    bundle(program: ts.Program): Promise<void>;
+}
+
+function deriveEntrypoint(options: Options): EntrypointName {
+    const { projectRoot, inputPath } = options;
+
+    const input = fsPath.isAbsolute(inputPath) ? inputPath : fsPath.join(projectRoot, inputPath);
+    if (!input.startsWith(projectRoot)) {
+        throw new Error("Entrypoint must be inside the project root");
+    }
+
+    let output = input.substring(projectRoot.length);
+    if (output.endsWith(".ts")) {
+        output = output.substring(0, output.length - 2) + "js";
+    }
+
+    return { input, output };
 }
 
 function getAssets(options: Options): Assets {
@@ -421,6 +454,11 @@ function getAssets(options: Options): Assets {
         shimDir,
         shims,
     };
+}
+
+interface EntrypointName {
+    input: string;
+    output: string;
 }
 
 interface Assets {
