@@ -7,7 +7,7 @@ import ts from "../ext/TypeScript/built/local/typescript.js";
 const compilerUrl = import.meta.url;
 const compilerRoot = fsPath.dirname(fsPath.dirname(compilerUrl.substring(7)));
 
-export async function build(options: BuildOptions): Promise<void> {
+export async function build(options: CompilerOptions): Promise<void> {
     const {
         projectRoot,
         inputPath,
@@ -372,7 +372,10 @@ export async function build(options: BuildOptions): Promise<void> {
     }
 }
 
-export interface BuildOptions {
+export async function watch(options: CompilerOptions): Promise<void> {
+}
+
+export interface CompilerOptions {
     projectRoot: string;
     inputPath: string;
     outputPath: string;
