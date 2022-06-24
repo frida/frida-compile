@@ -1,8 +1,10 @@
 import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/esm/index.js";
+import EventEmitter from "events";
 import fsPath from "path";
 import { FridaSystem } from "./system.js";
 import { minify, MinifyOptions, SourceMapOptions } from "terser";
-import ts, { EmitAndSemanticDiagnosticsBuilderProgram, isBundle } from "../ext/TypeScript/built/local/typescript.js";
+import TypedEmitter from "typed-emitter";
+import ts from "../ext/TypeScript/built/local/typescript.js";
 
 const compilerUrl = import.meta.url;
 const compilerRoot = fsPath.dirname(fsPath.dirname(compilerUrl.substring(7)));
@@ -54,19 +56,55 @@ export function watch(options: Options): void {
     const compilerOpts = makeCompilerOptions(sys, options);
     const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, sys, createProgram);
 
+    let state: "dirty" | "clean" = "dirty";
+    let pending: Promise<void> | null = null;
+    let timer: NodeJS.Timeout | null = null;
+
     const bundler = createBundler(entrypoint, assets, sys, options);
+    bundler.events.on("externalSourceFileAdded", file => {
+        compilerHost.watchFile(file.fileName, () => {
+            state = "dirty";
+            bundler.invalidate(file.fileName);
+            if (pending !== null || timer !== null) {
+                return;
+            }
+            timer = setTimeout(() => {
+                timer = null;
+                rebundle();
+            }, 250);
+        });
+    });
 
     const origPostProgramCreate = compilerHost.afterProgramCreate!;
     compilerHost.afterProgramCreate = async program => {
         origPostProgramCreate(program);
+        process.nextTick(rebundle);
+    };
+
+    const watchProgram = ts.createWatchProgram(compilerHost);
+
+    function rebundle(): void {
+        if (pending === null) {
+            state = "clean";
+            pending = performBundling();
+            pending.then(() => {
+                pending = null;
+                if (state === "dirty") {
+                    rebundle();
+                }
+            });
+        } else {
+            state = "dirty";
+        }
+    }
+
+    async function performBundling(): Promise<void> {
         try {
-            await bundler.bundle(program.getProgram());
+            await bundler.bundle(watchProgram.getProgram().getProgram());
         } catch (e) {
             console.error("Failed to bundle:", e);
         }
-    };
-
-    ts.createWatchProgram(compilerHost);
+    }
 }
 
 export interface Options {
@@ -119,6 +157,8 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
         compression = "none",
     } = options;
 
+    const events = new EventEmitter() as TypedEmitter<BundlerEvents>;
+
     const output = new Map<string, string>();
     const origins = new Map<string, string>();
     const aliases = new Map<string, string>();
@@ -127,6 +167,11 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
     const jsonFilePaths = new Set<string>();
     const modules = new Map<string, JSModule>();
     const externalSources = new Map<string, ts.SourceFile>();
+
+    const origWriteFile = sys.writeFile;
+    sys.writeFile = (path, data, writeByteOrderMark) => {
+        output.set(path, data);
+    };
 
     function getExternalSourceFile(path: string): ts.SourceFile {
         let file = externalSources.get(path);
@@ -139,16 +184,34 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
             throw new Error(`Unable to open ${path}`);
         }
 
-        return ts.createSourceFile(path, sourceText, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+        file = ts.createSourceFile(path, sourceText, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+        externalSources.set(path, file);
+
+        events.emit("externalSourceFileAdded", file);
+
+        return file;
     }
 
-    const origWriteFile = sys.writeFile;
-    sys.writeFile = (path, data, writeByteOrderMark) => {
-        output.set(path, data);
-    };
+    function assetNameFromFilePath(path: string): string {
+        const { shimDir } = assets;
+        if (path.startsWith(shimDir)) {
+            return "/shims" + path.substring(shimDir.length);
+        }
+
+        if (path.startsWith(compilerRoot)) {
+            return path.substring(compilerRoot.length);
+        }
+
+        if (path.startsWith(projectRoot)) {
+            return path.substring(projectRoot.length);
+        }
+
+        throw new Error(`Unexpected file path: ${path}`);
+    }
 
     return {
-        async bundle(program: ts.Program) {
+        events,
+        async bundle(program: ts.Program): Promise<void> {
             for (const sf of program.getSourceFiles()) {
                 if (!sf.isDeclarationFile) {
                     const fileName = sf.fileName;
@@ -356,9 +419,12 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
             }
 
             const names: string[] = [];
-            const namesInRawOrder = Array.from(output.keys());
-            const maps = new Set(namesInRawOrder.filter(name => name.endsWith(".map")));
-            for (const name of namesInRawOrder.filter(name => !name.endsWith(".map"))) {
+
+            const orderedNames = Array.from(output.keys());
+            orderedNames.sort();
+
+            const maps = new Set(orderedNames.filter(name => name.endsWith(".map")));
+            for (const name of orderedNames.filter(name => !name.endsWith(".map"))) {
                 let index = (name === entrypoint.output) ? 0 : names.length;
 
                 const mapName = name + ".map";
@@ -393,30 +459,25 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
 
             const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
             origWriteFile(fullOutputPath, chunks.join(""), false);
-
-            function assetNameFromFilePath(path: string): string {
-                const { shimDir } = assets;
-                if (path.startsWith(shimDir)) {
-                    return "/shims" + path.substring(shimDir.length);
-                }
-
-                if (path.startsWith(compilerRoot)) {
-                    return path.substring(compilerRoot.length);
-                }
-
-                if (path.startsWith(projectRoot)) {
-                    return path.substring(projectRoot.length);
-                }
-
-                throw new Error(`Unexpected file path: ${path}`);
-            }
+        },
+        invalidate(path: string): void {
+            output.delete(assetNameFromFilePath(path));
+            processedModules.clear();
+            externalSources.delete(path);
         }
     };
 }
 
 interface Bundler {
+    events: TypedEmitter<BundlerEvents>;
+
     bundle(program: ts.Program): Promise<void>;
+    invalidate(path: string): void;
 }
+
+type BundlerEvents = {
+    externalSourceFileAdded: (file: ts.SourceFile) => void,
+};
 
 function deriveEntrypoint(options: Options): EntrypointName {
     const { projectRoot, inputPath } = options;
