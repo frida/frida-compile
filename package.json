@@ -17,7 +17,7 @@
     "@frida/ieee754": "^2.0.2",
     "@frida/net": "^4.0.0",
     "@frida/os": "^1.0.0",
-    "@frida/path": "^2.0.1",
+    "@frida/path": "^2.0.2",
     "@frida/process": "^1.0.0",
     "@frida/punycode": "^3.0.0",
     "@frida/querystring": "^1.0.0",
@@ -30,7 +30,7 @@
     "@frida/util": "^1.0.3",
     "@frida/vm": "^2.0.0",
     "commander": "^9.3.0",
-    "frida-fs": "^4.0.0",
+    "frida-fs": "^4.0.1",
     "terser": "^5.14.1"
   },
   "devDependencies": {
