@@ -217,7 +217,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     const fileName = sf.fileName;
                     const bareName = fileName.substring(0, fileName.lastIndexOf("."));
                     const outName = bareName + ".js";
-                    origins.set(fileName, outName);
+                    origins.set(assetNameFromFilePath(outName), outName);
                     processedModules.add(bareName);
                     processedModules.add(outName);
                 }
