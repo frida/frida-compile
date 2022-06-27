@@ -5,6 +5,12 @@
   "main": "dist/index.js",
   "type": "module",
   "bin": "dist/cli.js",
+  "files": [
+    "/dist/**/*.d.ts",
+    "/dist/**/*.js",
+    "/ext/cjstoesm/dist/esm/index.js",
+    "/ext/TypeScript/built/local/typescript.js"
+  ],
   "dependencies": {
     "@frida/assert": "^3.0.1",
     "@frida/base64-js": "^2.0.3",
