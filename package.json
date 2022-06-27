@@ -13,10 +13,10 @@
     "/dist/**/*.d.ts",
     "/dist/**/*.js",
     "/ext/cjstoesm/dist/esm/index.js",
+    "/ext/TypeScript/package.json",
     "/ext/TypeScript/built/local/typescript.js"
   ],
   "scripts": {
-    "prepare": "npm run build",
     "build": "tsc",
     "watch": "tsc -w"
   },
@@ -45,14 +45,18 @@
     "@frida/util": "^1.0.3",
     "@frida/vm": "^2.0.0",
     "commander": "^9.3.0",
+    "crosspath": "^2.0.0",
+    "fast-glob": "^3.2.11",
     "frida-fs": "^4.0.1",
+    "reserved-words": "^0.1.2",
+    "resolve": "^1.22.1",
+    "sjcl": "^1.0.8",
     "terser": "^5.14.1"
   },
   "devDependencies": {
     "@types/frida-gum": "^18.0.0",
     "@types/node": "^18.0.0",
     "@types/sjcl": "^1.0.30",
-    "sjcl": "^1.0.8",
     "typed-emitter": "^2.1.0",
     "typescript": "^4.7.4"
   }
