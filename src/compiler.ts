@@ -131,7 +131,7 @@ function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOp
     const defaultTsOptions: ts.CompilerOptions = {
         target: ts.ScriptTarget.ES2020,
         module: ts.ModuleKind.ES2020,
-        moduleResolution: ts.ModuleResolutionKind.NodeNext,
+        moduleResolution: ts.ModuleResolutionKind.NodeJs,
         resolveJsonModule: true,
         allowJs: true,
         strict: true
