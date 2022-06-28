@@ -17,9 +17,10 @@ const sourceTransformers: ts.CustomTransformers = {
 
 export async function build(options: Options): Promise<void> {
     const entrypoint = deriveEntrypoint(options);
-    const assets = getAssets(options);
 
-    const sys = makeSystem(assets, options);
+    const sys = makeSystem(options);
+    const assets = getAssets(sys, options);
+
     const compilerOpts = makeCompilerOptions(sys, options);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, sys);
 
@@ -38,7 +39,9 @@ export async function build(options: Options): Promise<void> {
 
 export function watch(options: Options): void {
     const entrypoint = deriveEntrypoint(options);
-    const assets = getAssets(options);
+
+    const sys = makeSystem(options);
+    const assets = getAssets(sys, options);
 
     const origCreateProgram: any = ts.createEmitAndSemanticDiagnosticsBuilderProgram;
     const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (...args: any[]): ts.EmitAndSemanticDiagnosticsBuilderProgram => {
@@ -52,7 +55,6 @@ export function watch(options: Options): void {
         return program;
     };
 
-    const sys = makeSystem(assets, options);
     const compilerOpts = makeCompilerOptions(sys, options);
     const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, sys, createProgram);
 
@@ -494,44 +496,43 @@ function deriveEntrypoint(options: Options): EntrypointName {
     return { input, output };
 }
 
-function getAssets(options: Options): Assets {
+function getAssets(sys: ts.System, options: Options): Assets {
     const projectNodeModulesDir = fsPath.join(options.projectRoot, "node_modules");
     const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
-    const libDir = fsPath.join(compilerNodeModulesDir, "typescript", "lib");
     const shimDir = fsPath.join(compilerRoot, "shims");
+    const extShimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
 
     const shims = new Map([
-        ["assert", fsPath.join(compilerNodeModulesDir, "@frida", "assert")],
-        ["base64-js", fsPath.join(compilerNodeModulesDir, "@frida", "base64-js")],
-        ["buffer", fsPath.join(compilerNodeModulesDir, "@frida", "buffer")],
-        ["diagnostics_channel", fsPath.join(compilerNodeModulesDir, "@frida", "diagnostics_channel")],
-        ["events", fsPath.join(compilerNodeModulesDir, "@frida", "events")],
-        ["fs", fsPath.join(compilerNodeModulesDir, "frida-fs")],
-        ["http", fsPath.join(compilerNodeModulesDir, "@frida", "http")],
-        ["https", fsPath.join(compilerNodeModulesDir, "@frida", "https")],
-        ["http-parser-js", fsPath.join(compilerNodeModulesDir, "@frida", "http-parser-js")],
-        ["ieee754", fsPath.join(compilerNodeModulesDir, "@frida", "ieee754")],
-        ["net", fsPath.join(compilerNodeModulesDir, "@frida", "net")],
-        ["os", fsPath.join(compilerNodeModulesDir, "@frida", "os")],
-        ["path", fsPath.join(compilerNodeModulesDir, "@frida", "path")],
-        ["process", fsPath.join(compilerNodeModulesDir, "@frida", "process")],
-        ["punycode", fsPath.join(compilerNodeModulesDir, "@frida", "punycode")],
-        ["querystring", fsPath.join(compilerNodeModulesDir, "@frida", "querystring")],
-        ["readable-stream", fsPath.join(compilerNodeModulesDir, "@frida", "readable-stream")],
-        ["stream", fsPath.join(compilerNodeModulesDir, "@frida", "stream")],
-        ["string_decoder", fsPath.join(compilerNodeModulesDir, "@frida", "string_decoder")],
+        ["assert", fsPath.join(extShimDir, "@frida", "assert")],
+        ["base64-js", fsPath.join(extShimDir, "@frida", "base64-js")],
+        ["buffer", fsPath.join(extShimDir, "@frida", "buffer")],
+        ["diagnostics_channel", fsPath.join(extShimDir, "@frida", "diagnostics_channel")],
+        ["events", fsPath.join(extShimDir, "@frida", "events")],
+        ["fs", fsPath.join(extShimDir, "frida-fs")],
+        ["http", fsPath.join(extShimDir, "@frida", "http")],
+        ["https", fsPath.join(extShimDir, "@frida", "https")],
+        ["http-parser-js", fsPath.join(extShimDir, "@frida", "http-parser-js")],
+        ["ieee754", fsPath.join(extShimDir, "@frida", "ieee754")],
+        ["net", fsPath.join(extShimDir, "@frida", "net")],
+        ["os", fsPath.join(extShimDir, "@frida", "os")],
+        ["path", fsPath.join(extShimDir, "@frida", "path")],
+        ["process", fsPath.join(extShimDir, "@frida", "process")],
+        ["punycode", fsPath.join(extShimDir, "@frida", "punycode")],
+        ["querystring", fsPath.join(extShimDir, "@frida", "querystring")],
+        ["readable-stream", fsPath.join(extShimDir, "@frida", "readable-stream")],
+        ["stream", fsPath.join(extShimDir, "@frida", "stream")],
+        ["string_decoder", fsPath.join(extShimDir, "@frida", "string_decoder")],
         ["supports-color", fsPath.join(shimDir, "supports-color.js")],
-        ["timers", fsPath.join(compilerNodeModulesDir, "@frida", "timers")],
-        ["tty", fsPath.join(compilerNodeModulesDir, "@frida", "tty")],
-        ["url", fsPath.join(compilerNodeModulesDir, "@frida", "url")],
-        ["util", fsPath.join(compilerNodeModulesDir, "@frida", "util")],
-        ["vm", fsPath.join(compilerNodeModulesDir, "@frida", "vm")],
+        ["timers", fsPath.join(extShimDir, "@frida", "timers")],
+        ["tty", fsPath.join(extShimDir, "@frida", "tty")],
+        ["url", fsPath.join(extShimDir, "@frida", "url")],
+        ["util", fsPath.join(extShimDir, "@frida", "util")],
+        ["vm", fsPath.join(extShimDir, "@frida", "vm")],
     ]);
 
     return {
         projectNodeModulesDir,
         compilerNodeModulesDir,
-        libDir,
         shimDir,
         shims,
     };
@@ -545,15 +546,15 @@ interface EntrypointName {
 interface Assets {
     projectNodeModulesDir: string;
     compilerNodeModulesDir: string;
-    libDir: string;
     shimDir: string;
     shims: Map<string, string>;
 }
 
-function makeSystem(assets: Assets, options: Options): ts.System {
+function makeSystem(options: Options): ts.System {
     let sys: ts.System;
     if (typeof Frida !== "undefined") {
-        sys = new FridaSystem(options.projectRoot, assets.libDir);
+        const libDir = fsPath.join(compilerRoot, "ext", "TypeScript", "built", "local");
+        sys = new FridaSystem(options.projectRoot, libDir);
     } else {
         sys = ts.sys;
     }
