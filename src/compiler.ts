@@ -6,8 +6,8 @@ import { minify, MinifyOptions, SourceMapOptions } from "terser";
 import TypedEmitter from "typed-emitter";
 import ts from "../ext/TypeScript/built/local/typescript.js";
 
-const compilerUrl = import.meta.url;
-const compilerRoot = fsPath.dirname(fsPath.dirname(compilerUrl.substring(7)));
+const isWindows = process.platform === "win32";
+const compilerRoot = detectCompilerRoot();
 
 const sourceTransformers: ts.CustomTransformers = {
     after: [
@@ -66,7 +66,7 @@ export function watch(options: Options): void {
     bundler.events.on("externalSourceFileAdded", file => {
         compilerHost.watchFile(file.fileName, () => {
             state = "dirty";
-            bundler.invalidate(file.fileName);
+            bundler.invalidate(portablePathToFilePath(file.fileName));
             if (pending !== null || timer !== null) {
                 return;
             }
@@ -196,16 +196,17 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
 
     function assetNameFromFilePath(path: string): string {
         const { shimDir } = assets;
+
         if (path.startsWith(shimDir)) {
-            return "/shims" + path.substring(shimDir.length);
+            return "/shims" + portablePathFromFilePath(path.substring(shimDir.length));
         }
 
         if (path.startsWith(compilerRoot)) {
-            return path.substring(compilerRoot.length);
+            return portablePathFromFilePath(path.substring(compilerRoot.length));
         }
 
         if (path.startsWith(projectRoot)) {
-            return path.substring(projectRoot.length);
+            return portablePathFromFilePath(path.substring(projectRoot.length));
         }
 
         throw new Error(`Unexpected file path: ${path}`);
@@ -216,7 +217,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
         async bundle(program: ts.Program): Promise<void> {
             for (const sf of program.getSourceFiles()) {
                 if (!sf.isDeclarationFile) {
-                    const fileName = sf.fileName;
+                    const fileName = portablePathToFilePath(sf.fileName);
                     const bareName = fileName.substring(0, fileName.lastIndexOf("."));
                     const outName = bareName + ".js";
                     origins.set(assetNameFromFilePath(outName), outName);
@@ -230,7 +231,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     const { fileName } = sf;
                     const mod: JSModule = {
                         type: "esm",
-                        path: fileName,
+                        path: portablePathToFilePath(fileName),
                         file: sf
                     };
                     processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
@@ -306,7 +307,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     } else {
                         assetSubPath = fsPath.join("shims", modPath.substring(assets.shimDir.length + 1));
                     }
-                    aliases.set("/" + assetSubPath.replace("\\", "/"), entry);
+                    aliases.set("/" + portablePathFromFilePath(assetSubPath), entry);
                 }
 
                 const sourceFile = getExternalSourceFile(modPath);
@@ -368,9 +369,8 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     }
 
                     if (compression === "terser") {
-                        const originName = origins.get(name)!;
-                        const originFilenameStart = originName.lastIndexOf("/") + 1;
-                        const originFilename = originName.substring(originFilenameStart);
+                        const originPath = origins.get(name)!;
+                        const originFilename = fsPath.basename(originPath);
 
                         const minifySources: { [name: string]: string } = {};
                         minifySources[originFilename] = code;
@@ -390,7 +390,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                         if (sourceMaps === "included") {
                             const mapOpts: SourceMapOptions = {
                                 asObject: true,
-                                root: originName.substring(0, originFilenameStart),
+                                root: portablePathFromFilePath(fsPath.dirname(originPath)) + "/",
                                 filename: name.substring(name.lastIndexOf("/") + 1),
                             } as SourceMapOptions;
 
@@ -744,4 +744,18 @@ class FridaConfigFileHost implements ts.ParseConfigFileHost {
 
     onUnRecoverableConfigFileDiagnostic(diagnostic: ts.Diagnostic) {
     }
+}
+
+function detectCompilerRoot(): string {
+    const jsPath = import.meta.url.substring(isWindows ? 8 : 7);
+    const rootPath = fsPath.dirname(fsPath.dirname(jsPath));
+    return portablePathToFilePath(rootPath);
+}
+
+function portablePathFromFilePath(path: string): string {
+    return isWindows ? path.replace(/\\/g, "/") : path;
+}
+
+function portablePathToFilePath(path: string): string {
+    return isWindows ? path.replace(/\//g, "\\") : path;
 }
