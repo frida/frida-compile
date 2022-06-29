@@ -48,7 +48,7 @@
     "commander": "^9.3.0",
     "crosspath": "^2.0.0",
     "fast-glob": "^3.2.11",
-    "frida-fs": "^5.0.1",
+    "frida-fs": "^5.0.2",
     "reserved-words": "^0.1.2",
     "resolve": "^1.22.1",
     "sjcl": "^1.0.8",
