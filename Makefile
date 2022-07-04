@@ -1,32 +1,39 @@
 all: dist/compiler.js
 
-dist/compiler.js: ext/TypeScript/built/local/typescript.js ext/cjstoesm/dist/esm/index.js
+dist/compiler.js: ext/typescript.js ext/cjstoesm.js
 	npm run build
 
-ext/TypeScript/built/local/typescript.js: node_modules/.bin/terser
+ext/typescript.js: node_modules/.bin/terser
 	cd ext/TypeScript \
 		&& npm install \
-		&& npm run build:compiler
-	mv $@ $@_
+		&& node_modules/.bin/gulp services
+	( \
+		cat ext/TypeScript/built/local/typescript.js; \
+		echo "export default ts;"; \
+	) > $@_
+	cp ext/TypeScript/built/local/typescript.d.ts ext/
+	cp ext/TypeScript/built/local/lib.es*.d.ts ext/
 	node_modules/.bin/terser \
 		-c -m \
 		--ecma 2020 \
 		--module \
 		-o $@ \
+		--define process.env.FRIDA_COMPILE=true \
 		$@_
+	rm $@_
 
-ext/cjstoesm/dist/esm/index.js: node_modules/.bin/terser
+ext/cjstoesm.js: node_modules/.bin/terser
 	cd ext/cjstoesm \
 		&& npm install \
 		&& npm run build
-	sed -e "s,from 'typescript',from '../../../TypeScript/built/local/typescript.js',g" $@ > $@_
-	rm $@
+	sed -e "s,from 'typescript',from './typescript.js',g" ext/cjstoesm/dist/esm/index.js > $@_
 	node_modules/.bin/terser \
 		-c -m \
 		--ecma 2020 \
 		--module \
 		-o $@ \
 		$@_
+	rm $@_
 
 node_modules/.bin/terser:
 	npm install

@@ -1,7 +1,7 @@
 import fs from "fs";
 import fsPath from "path";
 import sjcl from "sjcl";
-import ts from "../ext/TypeScript/built/local/typescript.js";
+import ts from "../../ext/typescript.js";
 
 const fileCache = new Map<string, string>();
 

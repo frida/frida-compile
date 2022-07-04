@@ -13,10 +13,9 @@
   "files": [
     "/dist/**/*.d.ts",
     "/dist/**/*.js",
-    "/ext/cjstoesm/dist/esm/index.js",
-    "/ext/TypeScript/package.json",
-    "/ext/TypeScript/built/local/typescript.js",
-    "/ext/TypeScript/built/local/lib.es*.d.ts"
+    "/ext/cjstoesm.js",
+    "/ext/typescript.js",
+    "/ext/*.d.ts"
   ],
   "scripts": {
     "build": "tsc",

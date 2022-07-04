@@ -1,10 +1,11 @@
 import { cjsToEsmTransformer } from "../ext/cjstoesm/dist/esm/index.js";
 import EventEmitter from "events";
 import fsPath from "path";
-import { FridaSystem } from "./system.js";
+import { FridaSystem } from "./system/frida.js";
+import { getNodeSystem } from "./system/node.js";
 import { minify, MinifyOptions, SourceMapOptions } from "terser";
 import TypedEmitter from "typed-emitter";
-import ts from "../ext/TypeScript/built/local/typescript.js";
+import ts from "../ext/typescript.js";
 
 const isWindows = process.platform === "win32";
 const compilerRoot = detectCompilerRoot();
@@ -379,6 +380,9 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                             ecma: 2020,
                             compress: {
                                 module: true,
+                                global_defs: {
+                                    "process.env.FRIDA_COMPILE": true
+                                },
                             },
                             mangle: {
                                 module: true,
@@ -552,11 +556,11 @@ interface Assets {
 
 function makeSystem(options: Options): ts.System {
     let sys: ts.System;
-    if (typeof Frida !== "undefined") {
-        const libDir = fsPath.join(compilerRoot, "ext", "TypeScript", "built", "local");
+    if (process.env.FRIDA_COMPILE !== undefined) {
+        const libDir = fsPath.join(compilerRoot, "ext");
         sys = new FridaSystem(options.projectRoot, libDir);
     } else {
-        sys = ts.sys;
+        sys = getNodeSystem();
     }
     return sys;
 }
