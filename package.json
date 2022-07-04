@@ -15,7 +15,7 @@
     "/dist/**/*.js",
     "/ext/cjstoesm.js",
     "/ext/typescript.js",
-    "/ext/*.d.ts"
+    "/ext/lib.es*.d.ts"
   ],
   "scripts": {
     "build": "tsc",

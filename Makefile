@@ -26,7 +26,10 @@ ext/cjstoesm.js: node_modules/.bin/terser
 	cd ext/cjstoesm \
 		&& npm install \
 		&& npm run build
-	sed -e "s,from 'typescript',from './typescript.js',g" ext/cjstoesm/dist/esm/index.js > $@_
+	sed -e 's/import { MaybeArray, PartialExcept } from "helpertypes";/type MaybeArray<T> = T[] | T;type PartialExcept<T, K extends keyof T> = Omit<Partial<T>, K> \& Pick<T, K>;/g' \
+		ext/cjstoesm/dist/esm/index.d.ts > ext/cjstoesm.d.ts
+	sed -e "s,from 'typescript',from './typescript.js',g" \
+		ext/cjstoesm/dist/esm/index.js > $@_
 	node_modules/.bin/terser \
 		-c -m \
 		--ecma 2020 \
