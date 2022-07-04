@@ -26,7 +26,7 @@
     "@frida/base64-js": "^2.0.3",
     "@frida/buffer": "^7.0.4",
     "@frida/diagnostics_channel": "^1.0.0",
-    "@frida/events": "^4.0.0",
+    "@frida/events": "^4.0.4",
     "@frida/http": "^4.0.1",
     "@frida/http-parser-js": "^1.0.0",
     "@frida/https": "^1.0.0",
