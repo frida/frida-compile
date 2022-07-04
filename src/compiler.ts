@@ -165,7 +165,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
     const output = new Map<string, string>();
     const origins = new Map<string, string>();
     const aliases = new Map<string, string>();
-    const pendingModules = new Set<string>();
+    const pendingModules = new Map<string, JSModule>();
     const processedModules = new Set<string>();
     const jsonFilePaths = new Set<string>();
     const modules = new Map<string, JSModule>();
@@ -239,8 +239,11 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 }
             }
 
+            const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
+
             while (pendingModules.size > 0) {
-                const entry: string = pendingModules.values().next().value;
+                const entry: string = pendingModules.keys().next().value;
+                const requesterPath = pendingModules.get(entry)!.path;
                 pendingModules.delete(entry);
                 processedModules.add(entry);
 
@@ -270,7 +273,11 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                         }
                         needsAlias = true;
                     } else {
-                        modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
+                        if (requesterPath.startsWith(compilerRoot) || requesterPath.startsWith(linkedCompilerRoot)) {
+                            modPath = fsPath.join(assets.compilerNodeModulesDir, ...tokens);
+                        } else {
+                            modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
+                        }
                         needsAlias = subPath.length > 0;
                     }
                 }
@@ -587,7 +594,7 @@ function detectModuleType(modPath: string, sys: ts.System): ModuleType {
     return "cjs";
 }
 
-function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: Set<string>, jsonFilePaths: Set<string>): void {
+function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: Map<string, JSModule>, jsonFilePaths: Set<string>): void {
     const moduleDir = fsPath.dirname(mod.path);
     ts.forEachChild(mod.file, visit);
 
@@ -649,7 +656,7 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
             jsonFilePaths.add(path)
         } else {
             if (!processedModules.has(path)) {
-                pendingModules.add(path);
+                pendingModules.set(path, mod);
             }
         }
     }
