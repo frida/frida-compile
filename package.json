@@ -6,7 +6,7 @@
     "frida"
   ],
   "homepage": "https://frida.re",
-  "main": "dist/index.js",
+  "main": "dist/compiler.js",
   "type": "module",
   "bin": "dist/cli.js",
   "files": [
