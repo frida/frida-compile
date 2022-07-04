@@ -239,6 +239,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 }
             }
 
+            const compilerNodeSystemSuffix = fsPath.join("frida-compile", "dist", "system", "node.js");
             const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
 
             while (pendingModules.size > 0) {
@@ -246,6 +247,21 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 const requesterPath = pendingModules.get(entry)!.path;
                 pendingModules.delete(entry);
                 processedModules.add(entry);
+
+                if (entry.endsWith(compilerNodeSystemSuffix)) {
+                    const sourceFile = ts.createSourceFile(entry,
+                        "export function getNodeSystem() { throw new Error('Not supported;'); }",
+                        ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+
+                    const mod: JSModule = {
+                        type: "esm",
+                        path: entry,
+                        file: sourceFile
+                    };
+                    modules.set(entry, mod);
+
+                    continue;
+                }
 
                 let modPath: string;
                 let needsAlias = false;
