@@ -139,7 +139,7 @@ function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOp
 
     const configFileHost = new FridaConfigFileHost(projectRoot, system);
 
-    const opts = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)!.options;
+    const opts = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)?.options ?? defaultTsOptions;
     delete opts.noEmit;
     opts.rootDir = projectRoot;
     opts.outDir = "/";
