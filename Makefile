@@ -26,7 +26,7 @@ ext/cjstoesm.js: node_modules/.bin/terser
 	cd ext/cjstoesm \
 		&& npm install \
 		&& npm run build
-	sed -e 's/import { MaybeArray, PartialExcept } from "helpertypes";/type MaybeArray<T> = T[] | T;type PartialExcept<T, K extends keyof T> = Omit<Partial<T>, K> \& Pick<T, K>;/g' \
+	sed -e 's/import { MaybeArray } from "helpertypes";/type MaybeArray<T> = T[] | T;/g' \
 		ext/cjstoesm/dist/esm/index.d.ts > ext/cjstoesm.d.ts
 	sed -e "s,from 'typescript',from './typescript.js',g" \
 		ext/cjstoesm/dist/esm/index.js > $@_
