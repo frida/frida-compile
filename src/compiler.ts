@@ -302,7 +302,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     const rawPkgMeta = sys.readFile(fsPath.join(modPath, "package.json"));
                     if (rawPkgMeta !== undefined) {
                         const pkgMeta = JSON.parse(rawPkgMeta);
-                        const pkgMain = pkgMeta.main ?? "index.js";
+                        const pkgMain = pkgMeta.module ?? pkgMeta.main ?? "index.js";
                         let pkgEntrypoint = fsPath.join(modPath, pkgMain);
                         if (sys.directoryExists(pkgEntrypoint)) {
                             pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
