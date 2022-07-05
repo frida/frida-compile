@@ -1,6 +1,7 @@
 import { cjsToEsmTransformer } from "../ext/cjstoesm.js";
 import EventEmitter from "events";
 import fsPath from "path";
+import process from "process";
 import { FridaSystem } from "./system/frida.js";
 import { getNodeSystem } from "./system/node.js";
 import { check as checkIdentifier } from "@frida/reserved-words";
