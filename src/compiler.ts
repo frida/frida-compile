@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { cjsToEsmTransformer } from "../ext/cjstoesm.js";
 import EventEmitter from "events";
 import fsPath from "path";
