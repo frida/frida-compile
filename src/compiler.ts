@@ -771,9 +771,13 @@ class FridaConfigFileHost implements ts.ParseConfigFileHost {
 }
 
 function detectCompilerRoot(): string {
-    const jsPath = import.meta.url.substring(isWindows ? 8 : 7);
-    const rootPath = fsPath.dirname(fsPath.dirname(jsPath));
-    return portablePathToFilePath(rootPath);
+    if (process.env.FRIDA_COMPILE !== undefined) {
+        return fsPath.sep + "frida-compile";
+    } else {
+        const jsPath = import.meta.url.substring(isWindows ? 8 : 7);
+        const rootPath = fsPath.dirname(fsPath.dirname(jsPath));
+        return portablePathToFilePath(rootPath);
+    }
 }
 
 function portablePathFromFilePath(path: string): string {
