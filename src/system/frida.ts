@@ -30,7 +30,7 @@ export class FridaSystem implements ts.System {
 
         let result: string | undefined;
         try {
-            result = fs.readFileSync(path, { encoding: "utf-8" });
+            result = File.readAllText(path);
         } catch (e) {
             result = undefined;
         }
@@ -38,8 +38,6 @@ export class FridaSystem implements ts.System {
         if (result !== undefined) {
             fileCache.set(path, result);
         }
-
-        //console.log(`readFile("${path}") => ${(result !== undefined) ? "success" : "failure"}`);
 
         return result;
     }
