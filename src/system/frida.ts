@@ -48,7 +48,7 @@ export class FridaSystem implements ts.System {
     }
 
     writeFile(path: string, data: string, writeByteOrderMark?: boolean): void {
-        console.log("writeFile() ignoring:", path);
+        File.writeAllText(path, data);
     }
 
     watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
