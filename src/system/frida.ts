@@ -1,6 +1,5 @@
 import fs from "fs";
 import fsPath from "path";
-import sjcl from "sjcl";
 import ts from "../../ext/typescript.js";
 
 const fileCache = new Map<string, string>();
@@ -139,8 +138,7 @@ export class FridaSystem implements ts.System {
     }
 
     createSHA256Hash(data: string): string {
-        const bits = sjcl.hash.sha256.hash(data);
-        return sjcl.codec.hex.fromBits(bits);
+        return Checksum.compute("sha256", data);
     }
 
     getMemoryUsage(): number {
