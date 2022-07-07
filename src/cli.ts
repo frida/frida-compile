@@ -2,6 +2,9 @@
 
 import { program } from "commander";
 import * as compiler from "./compiler.js";
+import fs from "fs";
+import fsPath from "path";
+import { getNodeSystem } from "./system/node.js";
 
 async function main() {
     program
@@ -14,18 +17,36 @@ async function main() {
     program.parse();
 
     const opts = program.opts();
+    const projectRoot: string = process.cwd();
+    const entrypoint: string = program.args[0];
+    const outputPath: string = opts.output;
+
+    const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
+    const outputDir = fsPath.dirname(fullOutputPath);
+
+    const system = getNodeSystem();
+    const assets = compiler.queryDefaultAssets(projectRoot, system);
+
     const compilerOpts: compiler.Options = {
-        projectRoot: process.cwd(),
-        inputPath: program.args[0],
-        outputPath: opts.output,
+        projectRoot,
+        entrypoint,
         sourceMaps: opts.sourceMaps ? "included" : "omitted",
         compression: opts.compress ? "terser" : "none",
+        assets,
+        system
     };
 
     if (opts.watch) {
-        compiler.watch(compilerOpts);
+        compiler.watch(compilerOpts)
+            .on("bundleUpdated", writeBundle);
     } else {
-        await compiler.build(compilerOpts);
+        const bundle = await compiler.build(compilerOpts);
+        writeBundle(bundle);
+    }
+
+    function writeBundle(bundle: string): void {
+        fs.mkdirSync(outputDir, { recursive: true });
+        fs.writeFileSync(fullOutputPath, bundle!);
     }
 }
 

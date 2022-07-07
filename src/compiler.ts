@@ -3,8 +3,6 @@ import { cjsToEsmTransformer } from "../ext/cjstoesm.js";
 import EventEmitter from "events";
 import fsPath from "path";
 import process from "process";
-import { FridaSystem } from "./system/frida.js";
-import { getNodeSystem } from "./system/node.js";
 import { check as checkIdentifier } from "@frida/reserved-words";
 import { minify, MinifyOptions, SourceMapOptions } from "terser";
 import TypedEmitter from "typed-emitter";
@@ -19,14 +17,12 @@ const sourceTransformers: ts.CustomTransformers = {
     ]
 };
 
-export async function build(options: Options): Promise<void> {
+export async function build(options: Options): Promise<string> {
     const entrypoint = deriveEntrypoint(options);
+    const { assets, system } = options;
 
-    const sys = makeSystem(options);
-    const assets = getAssets(sys, options);
-
-    const compilerOpts = makeCompilerOptions(sys, options);
-    const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, sys);
+    const compilerOpts = makeCompilerOptions(system, options);
+    const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
 
     const program = ts.createProgram({
         rootNames: [entrypoint.input],
@@ -34,18 +30,18 @@ export async function build(options: Options): Promise<void> {
         host: compilerHost
     });
 
-    const bundler = createBundler(entrypoint, assets, sys, options);
+    const bundler = createBundler(entrypoint, assets, system, options);
 
     program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
 
-    await bundler.bundle(program);
+    return await bundler.bundle(program);
 }
 
-export function watch(options: Options): void {
+export function watch(options: Options): TypedEmitter<WatcherEvents> {
     const entrypoint = deriveEntrypoint(options);
+    const { assets, system } = options;
 
-    const sys = makeSystem(options);
-    const assets = getAssets(sys, options);
+    const events = new EventEmitter() as TypedEmitter<WatcherEvents>;
 
     const origCreateProgram: any = ts.createEmitAndSemanticDiagnosticsBuilderProgram;
     const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (...args: any[]): ts.EmitAndSemanticDiagnosticsBuilderProgram => {
@@ -59,14 +55,14 @@ export function watch(options: Options): void {
         return program;
     };
 
-    const compilerOpts = makeCompilerOptions(sys, options);
-    const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, sys, createProgram);
+    const compilerOpts = makeCompilerOptions(system, options);
+    const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, system, createProgram);
 
     let state: "dirty" | "clean" = "dirty";
     let pending: Promise<void> | null = null;
     let timer: NodeJS.Timeout | null = null;
 
-    const bundler = createBundler(entrypoint, assets, sys, options);
+    const bundler = createBundler(entrypoint, assets, system, options);
     bundler.events.on("externalSourceFileAdded", file => {
         compilerHost.watchFile(file.fileName, () => {
             state = "dirty";
@@ -106,20 +102,36 @@ export function watch(options: Options): void {
 
     async function performBundling(): Promise<void> {
         try {
-            await bundler.bundle(watchProgram.getProgram().getProgram());
+            const bundle = await bundler.bundle(watchProgram.getProgram().getProgram());
+            events.emit("bundleUpdated", bundle);
         } catch (e) {
             console.error("Failed to bundle:", e);
         }
     }
+
+    return events;
 }
 
 export interface Options {
     projectRoot: string;
-    inputPath: string;
-    outputPath: string;
+    entrypoint: string;
     sourceMaps?: "included" | "omitted";
     compression?: "none" | "terser";
+    assets: Assets;
+    system: ts.System;
 }
+
+export interface Assets {
+    projectNodeModulesDir: string;
+    compilerNodeModulesDir: string;
+    shimDir: string;
+    extShimDir: string;
+    shims: Map<string, string>;
+}
+
+export type WatcherEvents = {
+    bundleUpdated: (bundle: string) => void,
+};
 
 type ModuleType = "cjs" | "esm";
 
@@ -158,7 +170,6 @@ function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOp
 function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.System, options: Options): Bundler {
     const {
         projectRoot,
-        outputPath,
         sourceMaps = "included",
         compression = "none",
     } = options;
@@ -174,7 +185,6 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
     const modules = new Map<string, JSModule>();
     const externalSources = new Map<string, ts.SourceFile>();
 
-    const origWriteFile = sys.writeFile;
     sys.writeFile = (path, data, writeByteOrderMark) => {
         output.set(path, data);
     };
@@ -218,7 +228,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
 
     return {
         events,
-        async bundle(program: ts.Program): Promise<void> {
+        async bundle(program: ts.Program): Promise<string> {
             for (const sf of program.getSourceFiles()) {
                 if (!sf.isDeclarationFile) {
                     const fileName = portablePathToFilePath(sf.fileName);
@@ -242,7 +252,6 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 }
             }
 
-            const compilerNodeSystemSuffix = fsPath.join("frida-compile", "dist", "system", "node.js");
             const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
 
             while (pendingModules.size > 0) {
@@ -250,21 +259,6 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 const requesterPath = pendingModules.get(entry)!.path;
                 pendingModules.delete(entry);
                 processedModules.add(entry);
-
-                if (entry.endsWith(compilerNodeSystemSuffix)) {
-                    const sourceFile = ts.createSourceFile(entry,
-                        "export function getNodeSystem() { throw new Error('Not supported;'); }",
-                        ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
-
-                    const mod: JSModule = {
-                        type: "esm",
-                        path: entry,
-                        file: sourceFile
-                    };
-                    modules.set(entry, mod);
-
-                    continue;
-                }
 
                 let modPath: string;
                 let needsAlias = false;
@@ -355,7 +349,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 const host = ts.createIncrementalCompilerHost(opts, sys);
                 const p = ts.createProgram({
                     rootNames: legacyModules.map(m => m.path),
-                    options: { ...options, allowJs: true },
+                    options: { ...opts, allowJs: true },
                     host
                 });
                 p.emit(undefined, undefined, undefined, undefined, {
@@ -488,8 +482,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 i++;
             }
 
-            const fullOutputPath = fsPath.isAbsolute(outputPath) ? outputPath : fsPath.join(projectRoot, outputPath);
-            origWriteFile(fullOutputPath, chunks.join(""), false);
+            return chunks.join("");
         },
         invalidate(path: string): void {
             output.delete(assetNameFromFilePath(path));
@@ -502,7 +495,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
 interface Bundler {
     events: TypedEmitter<BundlerEvents>;
 
-    bundle(program: ts.Program): Promise<void>;
+    bundle(program: ts.Program): Promise<string>;
     invalidate(path: string): void;
 }
 
@@ -511,9 +504,9 @@ type BundlerEvents = {
 };
 
 function deriveEntrypoint(options: Options): EntrypointName {
-    const { projectRoot, inputPath } = options;
+    const { projectRoot, entrypoint } = options;
 
-    const input = fsPath.isAbsolute(inputPath) ? inputPath : fsPath.join(projectRoot, inputPath);
+    const input = fsPath.isAbsolute(entrypoint) ? entrypoint : fsPath.join(projectRoot, entrypoint);
     if (!input.startsWith(projectRoot)) {
         throw new Error("Entrypoint must be inside the project root");
     }
@@ -526,8 +519,8 @@ function deriveEntrypoint(options: Options): EntrypointName {
     return { input, output };
 }
 
-function getAssets(sys: ts.System, options: Options): Assets {
-    const projectNodeModulesDir = fsPath.join(options.projectRoot, "node_modules");
+export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
+    const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
     const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
     const shimDir = fsPath.join(compilerRoot, "shims");
     const extShimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
@@ -564,6 +557,7 @@ function getAssets(sys: ts.System, options: Options): Assets {
         projectNodeModulesDir,
         compilerNodeModulesDir,
         shimDir,
+        extShimDir,
         shims,
     };
 }
@@ -571,24 +565,6 @@ function getAssets(sys: ts.System, options: Options): Assets {
 interface EntrypointName {
     input: string;
     output: string;
-}
-
-interface Assets {
-    projectNodeModulesDir: string;
-    compilerNodeModulesDir: string;
-    shimDir: string;
-    shims: Map<string, string>;
-}
-
-function makeSystem(options: Options): ts.System {
-    let sys: ts.System;
-    if (process.env.FRIDA_COMPILE !== undefined) {
-        const libDir = fsPath.join(compilerRoot, "ext");
-        sys = new FridaSystem(options.projectRoot, libDir);
-    } else {
-        sys = getNodeSystem();
-    }
-    return sys;
 }
 
 function detectModuleType(modPath: string, sys: ts.System): ModuleType {
