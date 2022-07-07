@@ -622,9 +622,6 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
             visitImportDeclaration(node);
         } else if (ts.isExportDeclaration(node)) {
             visitExportDeclaration(node);
-        } else if (ts.isCallExpression(node)) {
-            visitCallExpression(node);
-            ts.forEachChild(node, visit);
         } else {
             ts.forEachChild(node, visit);
         }
@@ -642,29 +639,6 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
         }
 
         const depName = (specifier as ts.StringLiteral).text;
-        maybeAddModuleToPending(depName);
-    }
-
-    function visitCallExpression(call: ts.CallExpression) {
-        const expr: ts.LeftHandSideExpression = call.expression;
-        if (!ts.isIdentifier(expr)) {
-            return;
-        }
-        if (expr.escapedText !== "require") {
-            return;
-        }
-
-        const args = call.arguments;
-        if (args.length !== 1) {
-            return;
-        }
-
-        const arg = args[0];
-        if (!ts.isStringLiteral(arg)) {
-            return;
-        }
-
-        const depName = arg.text;
         maybeAddModuleToPending(depName);
     }
 
