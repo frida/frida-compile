@@ -15,11 +15,9 @@ export class FridaSystem implements ts.System {
     }
 
     write(s: string): void {
-        console.log("TODO: write()");
     }
 
     writeOutputIsTTY(): boolean {
-        console.log("TODO: writeOutputIsTTY()");
         return true;
     }
 
@@ -43,8 +41,7 @@ export class FridaSystem implements ts.System {
     }
 
     getFileSize(path: string): number {
-        console.log("TODO: getFileSize()");
-        return 0;
+        throw new Error("not implemented");
     }
 
     writeFile(path: string, data: string, writeByteOrderMark?: boolean): void {
@@ -52,17 +49,14 @@ export class FridaSystem implements ts.System {
     }
 
     watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
-        console.log("TODO: watchFile()");
-        throw new Error("Not implemented");
+        throw new Error("not implemented");
     }
 
     watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
-        console.log("TODO: watchDirectory()");
-        throw new Error("Not implemented");
+        throw new Error("not implemented");
     }
 
     resolvePath(path: string): string {
-        console.log("TODO: resolvePath()");
         return path;
     }
 
@@ -85,7 +79,7 @@ export class FridaSystem implements ts.System {
     }
 
     createDirectory(path: string): void {
-        console.log("TODO: createDirectory()");
+        throw new Error("not implemented");
     }
 
     getExecutingFilePath(): string {
@@ -97,38 +91,21 @@ export class FridaSystem implements ts.System {
     }
 
     getDirectories(path: string): string[] {
-        console.log("TODO: getDirectories()");
         return [];
     }
 
     readDirectory(path: string, extensions?: readonly string[], exclude?: readonly string[], include?: readonly string[], depth?: number): string[] {
-        console.log(`TODO: readDirectory("${path}")`);
-        if (extensions !== undefined) {
-            console.log(`\textensions: [ ${extensions.join(", ")} ]`);
-        }
-        if (exclude !== undefined) {
-            console.log(`\texclude: [ ${exclude.join(", ")} ]`);
-        }
-        if (include !== undefined) {
-            console.log(`\tinclude: [ ${include.join(", ")} ]`);
-        }
-        if (depth !== undefined) {
-            console.log(`\tdepth: ${depth}`);
-        }
         return [];
     }
 
     getModifiedTime(path: string): Date | undefined {
-        console.log("TODO: getModifiedTime()");
         return undefined;
     }
 
     setModifiedTime(path: string, time: Date): void {
-        console.log("TODO: setModifiedTime()");
     }
 
     deleteFile(path: string): void {
-        console.log("TODO: deleteFile()");
     }
 
     createHash(data: string): string {
@@ -144,7 +121,6 @@ export class FridaSystem implements ts.System {
     }
 
     exit(exitCode?: number): void {
-        console.log("TODO: exit");
     }
 
     realpath(path: string): string {
@@ -164,16 +140,13 @@ export class FridaSystem implements ts.System {
     }
 
     clearScreen(): void {
-        console.log("TODO: clearScreen");
     }
 
     base64decode(input: string): string {
-        console.log("TODO: base64decode");
-        return "yyy";
+        throw new Error("not implemented");
     }
 
     base64encode(input: string): string {
-        console.log("TODO: base64encode");
-        return "zzz";
+        throw new Error("not implemented");
     }
 }
