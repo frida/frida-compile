@@ -44,6 +44,9 @@ export async function build(options: BuildOptions): Promise<string> {
             onDiagnostic(diagnostic);
         }
     }
+    if (emitResult.emitSkipped) {
+        throw new Error("compilation failed");
+    }
 
     return await bundler.bundle(program);
 }
