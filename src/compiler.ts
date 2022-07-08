@@ -275,9 +275,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
     function markAllProgramSourcesAsProcessed(program: ts.Program): void {
         for (const sf of program.getSourceFiles()) {
             if (!sf.isDeclarationFile) {
-                const path = portablePathToFilePath(sf.fileName);
-                const pathWithoutExtension = path.substring(0, path.lastIndexOf("."));
-                const outPath = pathWithoutExtension + ".js";
+                const outPath = changeFileExtension(portablePathToFilePath(sf.fileName), "js");
                 const assetName = assetNameFromFilePath(outPath);
                 processedModules.add(assetName);
             }
@@ -759,4 +757,9 @@ function portablePathFromFilePath(path: string): string {
 
 function portablePathToFilePath(path: string): string {
     return isWindows ? path.replace(/\//g, "\\") : path;
+}
+
+function changeFileExtension(path: string, ext: string): string {
+    const pathWithoutExtension = path.substring(0, path.lastIndexOf("."));
+    return pathWithoutExtension + "." + ext;
 }
