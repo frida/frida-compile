@@ -259,6 +259,7 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
         lib: ["lib.es2020.d.ts"],
         module: ts.ModuleKind.ES2020,
         moduleResolution: ts.ModuleResolutionKind.NodeJs,
+        allowSyntheticDefaultImports: true,
         resolveJsonModule: true,
         allowJs: true,
         strict: true
