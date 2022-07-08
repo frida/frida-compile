@@ -218,6 +218,33 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
         ["vm", fsPath.join(shimDir, "@frida", "vm")],
     ]);
 
+    const nodeShimNames = [
+        "assert",
+        "buffer",
+        "diagnostics_channel",
+        "events",
+        "fs",
+        "http",
+        "https",
+        "net",
+        "os",
+        "path",
+        "process",
+        "punycode",
+        "querystring",
+        "stream",
+        "string_decoder",
+        "timers",
+        "tty",
+        "url",
+        "util",
+        "vm",
+    ];
+    for (const name of nodeShimNames) {
+        const path = shims.get(name)!;
+        shims.set("node:" + name, path);
+    }
+
     return {
         projectNodeModulesDir,
         compilerNodeModulesDir,
