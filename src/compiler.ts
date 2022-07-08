@@ -20,7 +20,8 @@ const sourceTransformers: ts.CustomTransformers = {
 export async function build(options: Options): Promise<string> {
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
-    const { projectRoot, assets, system } = options;
+    const { projectRoot, assets } = options;
+    const system = { ...options.system };
 
     const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
@@ -41,7 +42,8 @@ export async function build(options: Options): Promise<string> {
 export function watch(options: Options): TypedEmitter<WatcherEvents> {
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
-    const { projectRoot, assets, system } = options;
+    const { projectRoot, assets } = options;
+    const system = { ...options.system };
 
     const events = new EventEmitter() as TypedEmitter<WatcherEvents>;
 
@@ -153,6 +155,12 @@ interface JSModule {
     type: ModuleType;
     path: string;
     file: ts.SourceFile;
+    aliases: Set<string>;
+}
+
+interface ModuleReference {
+    name: string;
+    referrer: JSModule;
 }
 
 function deriveEntrypoint(options: Options): EntrypointName {
@@ -254,9 +262,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
     const events = new EventEmitter() as TypedEmitter<BundlerEvents>;
 
     const output = new Map<string, string>();
-    const origins = new Map<string, string>();
-    const aliases = new Map<string, string>();
-    const pendingModules = new Map<string, JSModule>();
+    const pendingModules: ModuleReference[] = [];
     const processedModules = new Set<string>();
     const jsonFilePaths = new Set<string>();
     const modules = new Map<string, JSModule>();
@@ -265,6 +271,18 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
     system.writeFile = (path, data, writeByteOrderMark) => {
         output.set(path, data);
     };
+
+    function markAllProgramSourcesAsProcessed(program: ts.Program): void {
+        for (const sf of program.getSourceFiles()) {
+            if (!sf.isDeclarationFile) {
+                const path = portablePathToFilePath(sf.fileName);
+                const pathWithoutExtension = path.substring(0, path.lastIndexOf("."));
+                const outPath = pathWithoutExtension + ".js";
+                const assetName = assetNameFromFilePath(outPath);
+                processedModules.add(assetName);
+            }
+        }
+    }
 
     function getExternalSourceFile(path: string): ts.SourceFile {
         let file = externalSources.get(path);
@@ -300,118 +318,60 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
     return {
         events,
         async bundle(program: ts.Program): Promise<string> {
-            for (const sf of program.getSourceFiles()) {
-                if (!sf.isDeclarationFile) {
-                    const fileName = portablePathToFilePath(sf.fileName);
-                    const bareName = fileName.substring(0, fileName.lastIndexOf("."));
-                    const outName = bareName + ".js";
-                    origins.set(assetNameFromFilePath(outName), outName);
-                    processedModules.add(bareName);
-                    processedModules.add(outName);
-                }
-            }
+            markAllProgramSourcesAsProcessed(program);
 
             for (const sf of program.getSourceFiles()) {
                 if (!sf.isDeclarationFile) {
                     const { fileName } = sf;
+                    const path = portablePathToFilePath(fileName);
                     const mod: JSModule = {
                         type: "esm",
-                        path: portablePathToFilePath(fileName),
-                        file: sf
+                        path,
+                        file: sf,
+                        aliases: new Set<string>(),
                     };
+                    modules.set(assetNameFromFilePath(path), mod);
+
                     processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
                 }
             }
 
-            const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
-
             const missing: string[] = [];
-            while (pendingModules.size > 0) {
-                const entry: string = pendingModules.keys().next().value;
-                const requesterPath = pendingModules.get(entry)!.path;
-                pendingModules.delete(entry);
-                processedModules.add(entry);
+            let ref: ModuleReference | undefined;
+            while ((ref = pendingModules.shift()) !== undefined) {
+                const refName = ref.name;
+                processedModules.add(ref.name);
 
-                let modPath: string;
-                let needsAlias = false;
-                if (fsPath.isAbsolute(entry)) {
-                    modPath = entry;
-                } else {
-                    const tokens = entry.split("/");
-
-                    let pkgName: string;
-                    let subPath: string[];
-                    if (tokens[0].startsWith("@")) {
-                        pkgName = tokens[0] + "/" + tokens[1];
-                        subPath = tokens.slice(2);
-                    } else {
-                        pkgName = tokens[0];
-                        subPath = tokens.slice(1);
-                    }
-
-                    const shimPath = assets.shims.get(pkgName);
-                    if (shimPath !== undefined) {
-                        if (shimPath.endsWith(".js")) {
-                            modPath = shimPath;
-                        } else {
-                            modPath = fsPath.join(shimPath, ...subPath);
-                        }
-                        needsAlias = true;
-                    } else {
-                        if (requesterPath.startsWith(compilerRoot) || requesterPath.startsWith(linkedCompilerRoot)) {
-                            modPath = fsPath.join(assets.compilerNodeModulesDir, ...tokens);
-                        } else {
-                            modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
-                        }
-                        needsAlias = subPath.length > 0;
-                    }
+                let resolveRes: ResolveModuleReferenceResult;
+                try {
+                    resolveRes = resolveModuleReference(ref, assets, system);
+                } catch (e) {
+                    missing.push(refName);
+                    continue;
                 }
+                const [modPath, needsAlias] = resolveRes;
 
-                if (system.directoryExists(modPath)) {
-                    const rawPkgMeta = system.readFile(fsPath.join(modPath, "package.json"));
-                    if (rawPkgMeta !== undefined) {
-                        const pkgMeta = JSON.parse(rawPkgMeta);
-                        const pkgMain = pkgMeta.module ?? pkgMeta.main ?? "index.js";
-                        let pkgEntrypoint = fsPath.join(modPath, pkgMain);
-                        if (system.directoryExists(pkgEntrypoint)) {
-                            pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
-                        }
+                const assetName = assetNameFromFilePath(modPath);
 
-                        modPath = pkgEntrypoint;
-                        needsAlias = true;
-                    } else {
-                        modPath = fsPath.join(modPath, "index.js");
-                    }
-                }
+                let mod = modules.get(assetName);
+                if (mod === undefined) {
+                    const sourceFile = getExternalSourceFile(modPath);
+                    mod = {
+                        type: detectModuleType(modPath, system),
+                        path: modPath,
+                        file: sourceFile,
+                        aliases: new Set<string>(),
+                    };
+                    output.set(assetName, sourceFile.text);
+                    modules.set(assetName, mod);
+                    processedModules.add(modPath);
 
-                if (!system.fileExists(modPath)) {
-                    modPath += ".js";
-                    if (!system.fileExists(modPath)) {
-                        missing.push(entry);
-                        continue;
-                    }
+                    processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
                 }
 
                 if (needsAlias) {
-                    let assetSubPath: string;
-                    if (modPath.startsWith(assets.projectNodeModulesDir)) {
-                        assetSubPath = modPath.substring(projectRoot.length + 1);
-                    } else {
-                        assetSubPath = modPath.substring(compilerRoot.length + 1);
-                    }
-                    aliases.set("/" + portablePathFromFilePath(assetSubPath), entry);
+                    mod.aliases.add(refName);
                 }
-
-                const sourceFile = getExternalSourceFile(modPath);
-
-                const mod: JSModule = {
-                    type: detectModuleType(modPath, system),
-                    path: modPath,
-                    file: sourceFile
-                };
-                modules.set(modPath, mod);
-
-                processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
             }
             if (missing.length > 0) {
                 throw new Error(`unable to resolve: ${missing.join(", ")}`);
@@ -436,14 +396,6 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                 });
             }
 
-            for (const [path, mod] of modules) {
-                const assetName = assetNameFromFilePath(path);
-                if (!output.has(assetName)) {
-                    output.set(assetName, mod.file.text);
-                    origins.set(assetName, path);
-                }
-            }
-
             for (const path of jsonFilePaths) {
                 const assetName = assetNameFromFilePath(path);
                 if (!output.has(assetName)) {
@@ -464,7 +416,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                     }
 
                     if (compression === "terser") {
-                        const originPath = origins.get(name)!;
+                        const originPath = ""; // FIXME: origins.get(name)!;
                         const originFilename = fsPath.basename(originPath);
 
                         const minifySources: { [name: string]: string } = {};
@@ -540,9 +492,11 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             for (const name of names) {
                 const rawData = Buffer.from(output.get(name)!);
                 chunks.push(`${rawData.length} ${name}\n`);
-                const alias = aliases.get(name);
-                if (alias !== undefined) {
-                    chunks.push(`↻ ${alias}\n`)
+                const mod = modules.get(name);
+                if (mod !== undefined) {
+                    for (const alias of mod.aliases) {
+                        chunks.push(`↻ ${alias}\n`)
+                    }
                 }
             }
             chunks.push("✄\n");
@@ -599,7 +553,76 @@ function detectModuleType(modPath: string, sys: ts.System): ModuleType {
     return "cjs";
 }
 
-function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: Map<string, JSModule>, jsonFilePaths: Set<string>): void {
+type ResolveModuleReferenceResult = [path: string, needsAlias: boolean];
+
+function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts.System): ResolveModuleReferenceResult {
+    const refName = ref.name;
+    const requesterPath = ref.referrer.path;
+
+    let modPath: string;
+    let needsAlias = false;
+    if (fsPath.isAbsolute(refName)) {
+        modPath = refName;
+    } else {
+        const tokens = refName.split("/");
+
+        let pkgName: string;
+        let subPath: string[];
+        if (tokens[0].startsWith("@")) {
+            pkgName = tokens[0] + "/" + tokens[1];
+            subPath = tokens.slice(2);
+        } else {
+            pkgName = tokens[0];
+            subPath = tokens.slice(1);
+        }
+
+        const shimPath = assets.shims.get(pkgName);
+        if (shimPath !== undefined) {
+            if (shimPath.endsWith(".js")) {
+                modPath = shimPath;
+            } else {
+                modPath = fsPath.join(shimPath, ...subPath);
+            }
+            needsAlias = true;
+        } else {
+            const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
+            if (requesterPath.startsWith(compilerRoot) || requesterPath.startsWith(linkedCompilerRoot)) {
+                modPath = fsPath.join(assets.compilerNodeModulesDir, ...tokens);
+            } else {
+                modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
+            }
+            needsAlias = subPath.length > 0;
+        }
+    }
+
+    if (system.directoryExists(modPath)) {
+        const rawPkgMeta = system.readFile(fsPath.join(modPath, "package.json"));
+        if (rawPkgMeta !== undefined) {
+            const pkgMeta = JSON.parse(rawPkgMeta);
+            const pkgMain = pkgMeta.module ?? pkgMeta.main ?? "index.js";
+            let pkgEntrypoint = fsPath.join(modPath, pkgMain);
+            if (system.directoryExists(pkgEntrypoint)) {
+                pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
+            }
+
+            modPath = pkgEntrypoint;
+            needsAlias = true;
+        } else {
+            modPath = fsPath.join(modPath, "index.js");
+        }
+    }
+
+    if (!system.fileExists(modPath)) {
+        modPath += ".js";
+        if (!system.fileExists(modPath)) {
+            throw new Error("unable to resolve module");
+        }
+    }
+
+    return [modPath, needsAlias];
+}
+
+function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: ModuleReference[], jsonFilePaths: Set<string>): void {
     const moduleDir = fsPath.dirname(mod.path);
     ts.forEachChild(mod.file, visit);
 
@@ -629,22 +652,11 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
     }
 
     function maybeAddModuleToPending(name: string) {
-        const path = resolveAssetReference(name);
-
+        const ref = name.startsWith(".") ? fsPath.join(moduleDir, name) : name;
         if (name.endsWith(".json")) {
-            jsonFilePaths.add(path)
-        } else {
-            if (!processedModules.has(path)) {
-                pendingModules.set(path, mod);
-            }
-        }
-    }
-
-    function resolveAssetReference(name: string): string {
-        if (name.startsWith(".")) {
-            return fsPath.join(moduleDir, name);
-        } else {
-            return name;
+            jsonFilePaths.add(ref);
+        } else if (!processedModules.has(ref)) {
+            pendingModules.push({ name: ref, referrer: mod });
         }
     }
 }
