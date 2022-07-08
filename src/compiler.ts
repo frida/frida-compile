@@ -19,9 +19,10 @@ const sourceTransformers: ts.CustomTransformers = {
 
 export async function build(options: Options): Promise<string> {
     const entrypoint = deriveEntrypoint(options);
-    const { assets, system } = options;
+    const outputOptions = makeOutputOptions(options);
+    const { projectRoot, assets, system } = options;
 
-    const compilerOpts = makeCompilerOptions(system, options);
+    const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
 
     const program = ts.createProgram({
@@ -30,7 +31,7 @@ export async function build(options: Options): Promise<string> {
         host: compilerHost
     });
 
-    const bundler = createBundler(entrypoint, assets, system, options);
+    const bundler = createBundler(entrypoint, projectRoot, assets, system, outputOptions);
 
     program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
 
@@ -39,7 +40,8 @@ export async function build(options: Options): Promise<string> {
 
 export function watch(options: Options): TypedEmitter<WatcherEvents> {
     const entrypoint = deriveEntrypoint(options);
-    const { assets, system } = options;
+    const outputOptions = makeOutputOptions(options);
+    const { projectRoot, assets, system } = options;
 
     const events = new EventEmitter() as TypedEmitter<WatcherEvents>;
 
@@ -55,14 +57,14 @@ export function watch(options: Options): TypedEmitter<WatcherEvents> {
         return program;
     };
 
-    const compilerOpts = makeCompilerOptions(system, options);
+    const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, system, createProgram);
 
     let state: "dirty" | "clean" = "dirty";
     let pending: Promise<void> | null = null;
     let timer: NodeJS.Timeout | null = null;
 
-    const bundler = createBundler(entrypoint, assets, system, options);
+    const bundler = createBundler(entrypoint, projectRoot, assets, system, outputOptions);
     bundler.events.on("externalSourceFileAdded", file => {
         compilerHost.watchFile(file.fileName, () => {
             state = "dirty";
@@ -115,11 +117,14 @@ export function watch(options: Options): TypedEmitter<WatcherEvents> {
 export interface Options {
     projectRoot: string;
     entrypoint: string;
-    sourceMaps?: "included" | "omitted";
-    compression?: "none" | "terser";
     assets: Assets;
     system: ts.System;
+    sourceMaps?: SourceMaps;
+    compression?: Compression;
 }
+
+export type SourceMaps = "included" | "omitted";
+export type Compression = "none" | "terser";
 
 export interface Assets {
     projectNodeModulesDir: string;
@@ -132,6 +137,16 @@ export type WatcherEvents = {
     bundleUpdated: (bundle: string) => void,
 };
 
+interface EntrypointName {
+    input: string;
+    output: string;
+}
+
+interface OutputOptions {
+    sourceMaps: SourceMaps;
+    compression: Compression;
+}
+
 type ModuleType = "cjs" | "esm";
 
 interface JSModule {
@@ -140,11 +155,75 @@ interface JSModule {
     file: ts.SourceFile;
 }
 
-function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOptions {
-    const { projectRoot } = options;
+function deriveEntrypoint(options: Options): EntrypointName {
+    const { projectRoot, entrypoint } = options;
 
+    const input = fsPath.isAbsolute(entrypoint) ? entrypoint : fsPath.join(projectRoot, entrypoint);
+    if (!input.startsWith(projectRoot)) {
+        throw new Error("Entrypoint must be inside the project root");
+    }
+
+    let output = input.substring(projectRoot.length);
+    if (output.endsWith(".ts")) {
+        output = output.substring(0, output.length - 2) + "js";
+    }
+
+    return { input, output };
+}
+
+function makeOutputOptions(options: Options): OutputOptions {
+    const {
+        sourceMaps = "included",
+        compression = "none",
+    } = options;
+
+    return { sourceMaps, compression };
+}
+
+export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
+    const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
+    const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
+    const shimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
+
+    const shims = new Map([
+        ["assert", fsPath.join(shimDir, "@frida", "assert")],
+        ["base64-js", fsPath.join(shimDir, "@frida", "base64-js")],
+        ["buffer", fsPath.join(shimDir, "@frida", "buffer")],
+        ["diagnostics_channel", fsPath.join(shimDir, "@frida", "diagnostics_channel")],
+        ["events", fsPath.join(shimDir, "@frida", "events")],
+        ["fs", fsPath.join(shimDir, "frida-fs")],
+        ["http", fsPath.join(shimDir, "@frida", "http")],
+        ["https", fsPath.join(shimDir, "@frida", "https")],
+        ["http-parser-js", fsPath.join(shimDir, "@frida", "http-parser-js")],
+        ["ieee754", fsPath.join(shimDir, "@frida", "ieee754")],
+        ["net", fsPath.join(shimDir, "@frida", "net")],
+        ["os", fsPath.join(shimDir, "@frida", "os")],
+        ["path", fsPath.join(shimDir, "@frida", "path")],
+        ["process", fsPath.join(shimDir, "@frida", "process")],
+        ["punycode", fsPath.join(shimDir, "@frida", "punycode")],
+        ["querystring", fsPath.join(shimDir, "@frida", "querystring")],
+        ["readable-stream", fsPath.join(shimDir, "@frida", "readable-stream")],
+        ["stream", fsPath.join(shimDir, "@frida", "stream")],
+        ["string_decoder", fsPath.join(shimDir, "@frida", "string_decoder")],
+        ["timers", fsPath.join(shimDir, "@frida", "timers")],
+        ["tty", fsPath.join(shimDir, "@frida", "tty")],
+        ["url", fsPath.join(shimDir, "@frida", "url")],
+        ["util", fsPath.join(shimDir, "@frida", "util")],
+        ["vm", fsPath.join(shimDir, "@frida", "vm")],
+    ]);
+
+    return {
+        projectNodeModulesDir,
+        compilerNodeModulesDir,
+        shimDir,
+        shims,
+    };
+}
+
+function makeCompilerOptions(projectRoot: string, system: ts.System, options: OutputOptions): ts.CompilerOptions {
     const defaultTsOptions: ts.CompilerOptions = {
         target: ts.ScriptTarget.ES2020,
+        lib: ["lib.es2020.d.ts"],
         module: ts.ModuleKind.ES2020,
         moduleResolution: ts.ModuleResolutionKind.NodeJs,
         resolveJsonModule: true,
@@ -158,19 +237,18 @@ function makeCompilerOptions(system: ts.System, options: Options): ts.CompilerOp
     delete opts.noEmit;
     opts.rootDir = projectRoot;
     opts.outDir = "/";
-    opts.sourceRoot = projectRoot;
     if (options.sourceMaps === "included") {
+        opts.sourceRoot = projectRoot;
         opts.sourceMap = true;
         opts.inlineSourceMap = false;
     }
     return opts;
 }
 
-function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.System, options: Options): Bundler {
+function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: Assets, system: ts.System, options: OutputOptions): Bundler {
     const {
-        projectRoot,
-        sourceMaps = "included",
-        compression = "none",
+        sourceMaps,
+        compression,
     } = options;
 
     const events = new EventEmitter() as TypedEmitter<BundlerEvents>;
@@ -184,7 +262,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
     const modules = new Map<string, JSModule>();
     const externalSources = new Map<string, ts.SourceFile>();
 
-    sys.writeFile = (path, data, writeByteOrderMark) => {
+    system.writeFile = (path, data, writeByteOrderMark) => {
         output.set(path, data);
     };
 
@@ -194,7 +272,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
             return file;
         }
 
-        const sourceText = sys.readFile(path, "utf-8");
+        const sourceText = system.readFile(path, "utf-8");
         if (sourceText === undefined) {
             throw new Error(`Unable to open ${path}`);
         }
@@ -289,13 +367,13 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     }
                 }
 
-                if (sys.directoryExists(modPath)) {
-                    const rawPkgMeta = sys.readFile(fsPath.join(modPath, "package.json"));
+                if (system.directoryExists(modPath)) {
+                    const rawPkgMeta = system.readFile(fsPath.join(modPath, "package.json"));
                     if (rawPkgMeta !== undefined) {
                         const pkgMeta = JSON.parse(rawPkgMeta);
                         const pkgMain = pkgMeta.module ?? pkgMeta.main ?? "index.js";
                         let pkgEntrypoint = fsPath.join(modPath, pkgMain);
-                        if (sys.directoryExists(pkgEntrypoint)) {
+                        if (system.directoryExists(pkgEntrypoint)) {
                             pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
                         }
 
@@ -306,9 +384,9 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     }
                 }
 
-                if (!sys.fileExists(modPath)) {
+                if (!system.fileExists(modPath)) {
                     modPath += ".js";
-                    if (!sys.fileExists(modPath)) {
+                    if (!system.fileExists(modPath)) {
                         missing.push(entry);
                         continue;
                     }
@@ -327,7 +405,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 const sourceFile = getExternalSourceFile(modPath);
 
                 const mod: JSModule = {
-                    type: detectModuleType(modPath, sys),
+                    type: detectModuleType(modPath, system),
                     path: modPath,
                     file: sourceFile
                 };
@@ -341,8 +419,8 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
 
             const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
             if (legacyModules.length > 0) {
-                const opts = makeCompilerOptions(sys, options);
-                const host = ts.createIncrementalCompilerHost(opts, sys);
+                const opts = makeCompilerOptions(projectRoot, system, options);
+                const host = ts.createIncrementalCompilerHost(opts, system);
                 const p = ts.createProgram({
                     rootNames: legacyModules.map(m => m.path),
                     options: { ...opts, allowJs: true },
@@ -369,7 +447,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
             for (const path of jsonFilePaths) {
                 const assetName = assetNameFromFilePath(path);
                 if (!output.has(assetName)) {
-                    output.set(assetName, sys.readFile(path)!);
+                    output.set(assetName, system.readFile(path)!);
                 }
             }
 
@@ -498,67 +576,6 @@ interface Bundler {
 type BundlerEvents = {
     externalSourceFileAdded: (file: ts.SourceFile) => void,
 };
-
-function deriveEntrypoint(options: Options): EntrypointName {
-    const { projectRoot, entrypoint } = options;
-
-    const input = fsPath.isAbsolute(entrypoint) ? entrypoint : fsPath.join(projectRoot, entrypoint);
-    if (!input.startsWith(projectRoot)) {
-        throw new Error("Entrypoint must be inside the project root");
-    }
-
-    let output = input.substring(projectRoot.length);
-    if (output.endsWith(".ts")) {
-        output = output.substring(0, output.length - 2) + "js";
-    }
-
-    return { input, output };
-}
-
-export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
-    const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
-    const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
-    const shimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
-
-    const shims = new Map([
-        ["assert", fsPath.join(shimDir, "@frida", "assert")],
-        ["base64-js", fsPath.join(shimDir, "@frida", "base64-js")],
-        ["buffer", fsPath.join(shimDir, "@frida", "buffer")],
-        ["diagnostics_channel", fsPath.join(shimDir, "@frida", "diagnostics_channel")],
-        ["events", fsPath.join(shimDir, "@frida", "events")],
-        ["fs", fsPath.join(shimDir, "frida-fs")],
-        ["http", fsPath.join(shimDir, "@frida", "http")],
-        ["https", fsPath.join(shimDir, "@frida", "https")],
-        ["http-parser-js", fsPath.join(shimDir, "@frida", "http-parser-js")],
-        ["ieee754", fsPath.join(shimDir, "@frida", "ieee754")],
-        ["net", fsPath.join(shimDir, "@frida", "net")],
-        ["os", fsPath.join(shimDir, "@frida", "os")],
-        ["path", fsPath.join(shimDir, "@frida", "path")],
-        ["process", fsPath.join(shimDir, "@frida", "process")],
-        ["punycode", fsPath.join(shimDir, "@frida", "punycode")],
-        ["querystring", fsPath.join(shimDir, "@frida", "querystring")],
-        ["readable-stream", fsPath.join(shimDir, "@frida", "readable-stream")],
-        ["stream", fsPath.join(shimDir, "@frida", "stream")],
-        ["string_decoder", fsPath.join(shimDir, "@frida", "string_decoder")],
-        ["timers", fsPath.join(shimDir, "@frida", "timers")],
-        ["tty", fsPath.join(shimDir, "@frida", "tty")],
-        ["url", fsPath.join(shimDir, "@frida", "url")],
-        ["util", fsPath.join(shimDir, "@frida", "util")],
-        ["vm", fsPath.join(shimDir, "@frida", "vm")],
-    ]);
-
-    return {
-        projectNodeModulesDir,
-        compilerNodeModulesDir,
-        shimDir,
-        shims,
-    };
-}
-
-interface EntrypointName {
-    input: string;
-    output: string;
-}
 
 function detectModuleType(modPath: string, sys: ts.System): ModuleType {
     let curDir = fsPath.dirname(modPath);
