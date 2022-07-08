@@ -17,10 +17,10 @@ const sourceTransformers: ts.CustomTransformers = {
     ]
 };
 
-export async function build(options: Options): Promise<string> {
+export async function build(options: BuildOptions): Promise<string> {
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
-    const { projectRoot, assets, system } = options;
+    const { projectRoot, assets, system, onDiagnostic } = options;
 
     const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
@@ -30,10 +30,20 @@ export async function build(options: Options): Promise<string> {
         options: compilerOpts,
         host: compilerHost
     });
+    if (onDiagnostic !== undefined) {
+        for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+            onDiagnostic(diagnostic);
+        }
+    }
 
     const bundler = createBundler(entrypoint, projectRoot, assets, system, outputOptions);
 
-    program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
+    const emitResult = program.emit(undefined, undefined, undefined, undefined, sourceTransformers);
+    if (onDiagnostic !== undefined) {
+        for (const diagnostic of emitResult.diagnostics) {
+            onDiagnostic(diagnostic);
+        }
+    }
 
     return await bundler.bundle(program);
 }
@@ -121,6 +131,10 @@ export interface Options {
     system: ts.System;
     sourceMaps?: SourceMaps;
     compression?: Compression;
+}
+
+export interface BuildOptions extends Options {
+    onDiagnostic?(diagnostic: ts.Diagnostic): void;
 }
 
 export type SourceMaps = "included" | "omitted";
