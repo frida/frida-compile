@@ -247,6 +247,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
 
             const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
 
+            const missing: string[] = [];
             while (pendingModules.size > 0) {
                 const entry: string = pendingModules.keys().next().value;
                 const requesterPath = pendingModules.get(entry)!.path;
@@ -308,6 +309,7 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 if (!sys.fileExists(modPath)) {
                     modPath += ".js";
                     if (!sys.fileExists(modPath)) {
+                        missing.push(entry);
                         continue;
                     }
                 }
@@ -332,6 +334,9 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                 modules.set(modPath, mod);
 
                 processJSModule(mod, processedModules, pendingModules, jsonFilePaths);
+            }
+            if (missing.length > 0) {
+                throw new Error(`unable to resolve: ${missing.join(", ")}`);
             }
 
             const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
