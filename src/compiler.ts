@@ -125,7 +125,6 @@ export interface Assets {
     projectNodeModulesDir: string;
     compilerNodeModulesDir: string;
     shimDir: string;
-    extShimDir: string;
     shims: Map<string, string>;
 }
 
@@ -522,42 +521,39 @@ function deriveEntrypoint(options: Options): EntrypointName {
 export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
     const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
     const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
-    const shimDir = fsPath.join(compilerRoot, "shims");
-    const extShimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
+    const shimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
 
     const shims = new Map([
-        ["assert", fsPath.join(extShimDir, "@frida", "assert")],
-        ["base64-js", fsPath.join(extShimDir, "@frida", "base64-js")],
-        ["buffer", fsPath.join(extShimDir, "@frida", "buffer")],
-        ["diagnostics_channel", fsPath.join(extShimDir, "@frida", "diagnostics_channel")],
-        ["events", fsPath.join(extShimDir, "@frida", "events")],
-        ["fs", fsPath.join(extShimDir, "frida-fs")],
-        ["http", fsPath.join(extShimDir, "@frida", "http")],
-        ["https", fsPath.join(extShimDir, "@frida", "https")],
-        ["http-parser-js", fsPath.join(extShimDir, "@frida", "http-parser-js")],
-        ["ieee754", fsPath.join(extShimDir, "@frida", "ieee754")],
-        ["net", fsPath.join(extShimDir, "@frida", "net")],
-        ["os", fsPath.join(extShimDir, "@frida", "os")],
-        ["path", fsPath.join(extShimDir, "@frida", "path")],
-        ["process", fsPath.join(extShimDir, "@frida", "process")],
-        ["punycode", fsPath.join(extShimDir, "@frida", "punycode")],
-        ["querystring", fsPath.join(extShimDir, "@frida", "querystring")],
-        ["readable-stream", fsPath.join(extShimDir, "@frida", "readable-stream")],
-        ["stream", fsPath.join(extShimDir, "@frida", "stream")],
-        ["string_decoder", fsPath.join(extShimDir, "@frida", "string_decoder")],
-        ["supports-color", fsPath.join(shimDir, "supports-color.js")],
-        ["timers", fsPath.join(extShimDir, "@frida", "timers")],
-        ["tty", fsPath.join(extShimDir, "@frida", "tty")],
-        ["url", fsPath.join(extShimDir, "@frida", "url")],
-        ["util", fsPath.join(extShimDir, "@frida", "util")],
-        ["vm", fsPath.join(extShimDir, "@frida", "vm")],
+        ["assert", fsPath.join(shimDir, "@frida", "assert")],
+        ["base64-js", fsPath.join(shimDir, "@frida", "base64-js")],
+        ["buffer", fsPath.join(shimDir, "@frida", "buffer")],
+        ["diagnostics_channel", fsPath.join(shimDir, "@frida", "diagnostics_channel")],
+        ["events", fsPath.join(shimDir, "@frida", "events")],
+        ["fs", fsPath.join(shimDir, "frida-fs")],
+        ["http", fsPath.join(shimDir, "@frida", "http")],
+        ["https", fsPath.join(shimDir, "@frida", "https")],
+        ["http-parser-js", fsPath.join(shimDir, "@frida", "http-parser-js")],
+        ["ieee754", fsPath.join(shimDir, "@frida", "ieee754")],
+        ["net", fsPath.join(shimDir, "@frida", "net")],
+        ["os", fsPath.join(shimDir, "@frida", "os")],
+        ["path", fsPath.join(shimDir, "@frida", "path")],
+        ["process", fsPath.join(shimDir, "@frida", "process")],
+        ["punycode", fsPath.join(shimDir, "@frida", "punycode")],
+        ["querystring", fsPath.join(shimDir, "@frida", "querystring")],
+        ["readable-stream", fsPath.join(shimDir, "@frida", "readable-stream")],
+        ["stream", fsPath.join(shimDir, "@frida", "stream")],
+        ["string_decoder", fsPath.join(shimDir, "@frida", "string_decoder")],
+        ["timers", fsPath.join(shimDir, "@frida", "timers")],
+        ["tty", fsPath.join(shimDir, "@frida", "tty")],
+        ["url", fsPath.join(shimDir, "@frida", "url")],
+        ["util", fsPath.join(shimDir, "@frida", "util")],
+        ["vm", fsPath.join(shimDir, "@frida", "vm")],
     ]);
 
     return {
         projectNodeModulesDir,
         compilerNodeModulesDir,
         shimDir,
-        extShimDir,
         shims,
     };
 }
