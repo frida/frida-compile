@@ -20,8 +20,7 @@ const sourceTransformers: ts.CustomTransformers = {
 export async function build(options: Options): Promise<string> {
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
-    const { projectRoot, assets } = options;
-    const system = { ...options.system };
+    const { projectRoot, assets, system } = options;
 
     const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
@@ -42,8 +41,7 @@ export async function build(options: Options): Promise<string> {
 export function watch(options: Options): TypedEmitter<WatcherEvents> {
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
-    const { projectRoot, assets } = options;
-    const system = { ...options.system };
+    const { projectRoot, assets, system } = options;
 
     const events = new EventEmitter() as TypedEmitter<WatcherEvents>;
 
