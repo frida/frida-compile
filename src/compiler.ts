@@ -51,7 +51,7 @@ export async function build(options: BuildOptions): Promise<string> {
     return await bundler.bundle(program);
 }
 
-export function watch(options: Options): TypedEmitter<WatcherEvents> {
+export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
     const { projectRoot, assets, system } = options;
@@ -138,6 +138,9 @@ export interface Options {
 
 export interface BuildOptions extends Options {
     onDiagnostic?(diagnostic: ts.Diagnostic): void;
+}
+
+export interface WatchOptions extends Options {
 }
 
 export type SourceMaps = "included" | "omitted";
