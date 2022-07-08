@@ -324,7 +324,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                     const path = portablePathToFilePath(fileName);
                     const mod: JSModule = {
                         type: "esm",
-                        path,
+                        path: changeFileExtension(path, "js"),
                         file: sf,
                         aliases: new Set<string>(),
                     };
@@ -414,7 +414,8 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                     }
 
                     if (compression === "terser") {
-                        const originPath = ""; // FIXME: origins.get(name)!;
+                        const mod = modules.get(name)!;
+                        const originPath = mod.path;
                         const originFilename = fsPath.basename(originPath);
 
                         const minifySources: { [name: string]: string } = {};
