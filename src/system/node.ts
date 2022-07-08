@@ -62,7 +62,11 @@ const {
 export function getNodeSystem(): ts.System {
     let nodeSystem: ts.System;
 
-    const __filename = import.meta.url.substring((process.platform === "win32") ? 8 : 7);
+    const selfPath = import.meta.url.substring((process.platform === "win32") ? 8 : 7);
+    const systemDir = _path.dirname(selfPath);
+    const distDir = _path.dirname(systemDir);
+    const pkgDir = _path.dirname(distDir);
+    const typescriptJsPath = _path.join(pkgDir, "ext", "typescript.js");
 
     const nativePattern = /^native |^\([^)]+\)$|^(internal[\\/]|[a-zA-Z0-9_\s]+(\.js)?$)/;
 
@@ -133,7 +137,7 @@ export function getNodeSystem(): ts.System {
             }
         },
         getExecutingFilePath() {
-            return __filename;
+            return typescriptJsPath;
         },
         getCurrentDirectory,
         getDirectories,
@@ -233,7 +237,7 @@ export function getNodeSystem(): ts.System {
             return false;
         }
         // If this file exists under a different case, we must be case-insensitve.
-        return !fileExists(swapCase(__filename));
+        return !fileExists(swapCase(typescriptJsPath));
     }
 
     /** Convert all lowercase chars to uppercase, and vice-versa */
