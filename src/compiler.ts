@@ -186,7 +186,7 @@ function deriveEntrypoint(options: Options): EntrypointName {
 
     const input = fsPath.isAbsolute(entrypoint) ? entrypoint : fsPath.join(projectRoot, entrypoint);
     if (!input.startsWith(projectRoot)) {
-        throw new Error("Entrypoint must be inside the project root");
+        throw new Error("entrypoint must be inside the project root");
     }
 
     let output = input.substring(projectRoot.length);
@@ -336,7 +336,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
 
         const sourceText = system.readFile(path, "utf-8");
         if (sourceText === undefined) {
-            throw new Error(`Unable to open ${path}`);
+            throw new Error(`unable to open ${path}`);
         }
 
         file = ts.createSourceFile(path, sourceText, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
@@ -356,7 +356,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             return portablePathFromFilePath(path.substring(projectRoot.length));
         }
 
-        throw new Error(`Unexpected file path: ${path}`);
+        throw new Error(`unexpected file path: ${path}`);
     }
 
     return {
