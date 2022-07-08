@@ -208,12 +208,6 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
     }
 
     function assetNameFromFilePath(path: string): string {
-        const { shimDir } = assets;
-
-        if (path.startsWith(shimDir)) {
-            return "/shims" + portablePathFromFilePath(path.substring(shimDir.length));
-        }
-
         if (path.startsWith(compilerRoot)) {
             return portablePathFromFilePath(path.substring(compilerRoot.length));
         }
@@ -322,10 +316,8 @@ function createBundler(entrypoint: EntrypointName, assets: Assets, sys: ts.Syste
                     let assetSubPath: string;
                     if (modPath.startsWith(assets.projectNodeModulesDir)) {
                         assetSubPath = modPath.substring(projectRoot.length + 1);
-                    } else if (modPath.startsWith(assets.compilerNodeModulesDir)) {
-                        assetSubPath = modPath.substring(compilerRoot.length + 1);
                     } else {
-                        assetSubPath = fsPath.join("shims", modPath.substring(assets.shimDir.length + 1));
+                        assetSubPath = modPath.substring(compilerRoot.length + 1);
                     }
                     aliases.set("/" + portablePathFromFilePath(assetSubPath), entry);
                 }
