@@ -636,7 +636,7 @@ function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts
         } else {
             const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
             if (requesterPath.startsWith(compilerRoot) || requesterPath.startsWith(linkedCompilerRoot)) {
-                modPath = fsPath.join(assets.compilerNodeModulesDir, ...tokens);
+                modPath = fsPath.join(assets.shimDir, ...tokens);
             } else {
                 modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
             }
