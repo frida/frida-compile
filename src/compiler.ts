@@ -586,7 +586,7 @@ function detectModuleType(modPath: string, sys: ts.System): ModuleType {
         const rawPkgMeta = sys.readFile(fsPath.join(curDir, "package.json"));
         if (rawPkgMeta !== undefined) {
             const pkgMeta = JSON.parse(rawPkgMeta);
-            if (pkgMeta.type === "module") {
+            if (pkgMeta.type === "module" || pkgMeta.module !== undefined) {
                 return "esm";
             }
             break;
