@@ -5,6 +5,7 @@ import * as compiler from "./compiler.js";
 import fs from "fs";
 import fsPath from "path";
 import { getNodeSystem } from "./system/node.js";
+import ts from "../ext/typescript.js";
 
 async function main() {
     program
@@ -40,7 +41,21 @@ async function main() {
         compiler.watch(compilerOpts)
             .on("bundleUpdated", writeBundle);
     } else {
-        const bundle = await compiler.build(compilerOpts);
+        const bundle = await compiler.build({
+            ...compilerOpts, onDiagnostic({
+                file,
+                start,
+                messageText
+            }) {
+                if (file !== undefined) {
+                    const { line, character } = ts.getLineAndCharacterOfPosition(file, start!);
+                    const message = ts.flattenDiagnosticMessageText(messageText, "\n");
+                    console.log(`${file.fileName} (${line + 1},${character + 1}): ${message}`);
+                } else {
+                    console.log(ts.flattenDiagnosticMessageText(messageText, "\n"));
+                }
+            }
+        });
         writeBundle(bundle);
     }
 
