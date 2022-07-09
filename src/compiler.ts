@@ -384,7 +384,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                 }
             }
 
-            const missing: string[] = [];
+            const missing = new Set<string>();
             let ref: ModuleReference | undefined;
             while ((ref = pendingModules.shift()) !== undefined) {
                 const refName = ref.name;
@@ -394,7 +394,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                 try {
                     resolveRes = resolveModuleReference(ref, assets, system);
                 } catch (e) {
-                    missing.push(refName);
+                    missing.add(refName);
                     continue;
                 }
                 const [modPath, needsAlias] = resolveRes;
@@ -421,8 +421,8 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                     mod.aliases.add(refName);
                 }
             }
-            if (missing.length > 0) {
-                throw new Error(`unable to resolve: ${missing.join(", ")}`);
+            if (missing.size > 0) {
+                throw new Error(`unable to resolve: ${Array.from(missing).join(", ")}`);
             }
 
             const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
