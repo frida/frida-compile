@@ -673,6 +673,7 @@ function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts
 
 function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: ModuleReference[], jsonFilePaths: Set<string>): void {
     const moduleDir = fsPath.dirname(mod.path);
+    const isCJS = mod.type === "cjs";
     ts.forEachChild(mod.file, visit);
 
     function visit(node: ts.Node) {
@@ -680,7 +681,7 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
             visitImportDeclaration(node);
         } else if (ts.isExportDeclaration(node)) {
             visitExportDeclaration(node);
-        } else if (ts.isCallExpression(node)) {
+        } else if (isCJS && ts.isCallExpression(node)) {
             visitCallExpression(node);
             ts.forEachChild(node, visit);
         } else {
