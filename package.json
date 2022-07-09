@@ -1,6 +1,6 @@
 {
   "name": "frida-compile",
-  "version": "15.0.1",
+  "version": "15.0.2",
   "description": "Compile a Frida script comprised of one or more Node.js modules",
   "keywords": [
     "frida"
