@@ -30,10 +30,14 @@ export async function build(options: BuildOptions): Promise<string> {
         options: compilerOpts,
         host: compilerHost
     });
+    const preEmitDiagnostics = ts.getPreEmitDiagnostics(program);
     if (onDiagnostic !== undefined) {
-        for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
+        for (const diagnostic of preEmitDiagnostics) {
             onDiagnostic(diagnostic);
         }
+    }
+    if (preEmitDiagnostics.some(({ category }) => category === ts.DiagnosticCategory.Error)) {
+        throw new Error("compilation failed");
     }
 
     const bundler = createBundler(entrypoint, projectRoot, assets, system, outputOptions);
@@ -44,7 +48,7 @@ export async function build(options: BuildOptions): Promise<string> {
             onDiagnostic(diagnostic);
         }
     }
-    if (emitResult.emitSkipped) {
+    if (emitResult.emitSkipped || emitResult.diagnostics.some(({ category }) => category === ts.DiagnosticCategory.Error)) {
         throw new Error("compilation failed");
     }
 
