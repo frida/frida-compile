@@ -326,8 +326,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
         for (const sf of program.getSourceFiles()) {
             if (!sf.isDeclarationFile) {
                 const outPath = changeFileExtension(portablePathToFilePath(sf.fileName), "js");
-                const assetName = assetNameFromFilePath(outPath);
-                processedModules.add(assetName);
+                processedModules.add(outPath);
             }
         }
     }
@@ -371,10 +370,10 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             for (const sf of program.getSourceFiles()) {
                 if (!sf.isDeclarationFile) {
                     const { fileName } = sf;
-                    const path = portablePathToFilePath(fileName);
+                    const path = changeFileExtension(portablePathToFilePath(fileName), "js");
                     const mod: JSModule = {
                         type: "esm",
-                        path: changeFileExtension(path, "js"),
+                        path,
                         file: sf,
                         aliases: new Set<string>(),
                     };
