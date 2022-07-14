@@ -523,8 +523,9 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             orderedNames.sort();
 
             const maps = new Set(orderedNames.filter(name => name.endsWith(".map")));
+            const entrypointNormalized = fsPath.normalize(entrypoint.output);
             for (const name of orderedNames.filter(name => !name.endsWith(".map"))) {
-                let index = (fsPath.normalize(name) === fsPath.normalize(entrypoint.output)) ? 0 : names.length;
+                let index = (fsPath.normalize(name) === entrypointNormalized) ? 0 : names.length;
 
                 const mapName = name + ".map";
                 if (maps.has(mapName)) {
