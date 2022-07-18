@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
 import { cjsToEsmTransformer } from "../ext/cjstoesm.js";
+import * as crosspath from "@frida/crosspath";
 import EventEmitter from "events";
-import fsPath from "path";
 import process from "process";
 import { check as checkIdentifier } from "@frida/reserved-words";
 import { minify, MinifyOptions, SourceMapOptions } from "terser";
@@ -18,6 +18,8 @@ const sourceTransformers: ts.CustomTransformers = {
 };
 
 export async function build(options: BuildOptions): Promise<string> {
+    options = normalizeOptions(options);
+
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
     const { projectRoot, assets, system, onDiagnostic } = options;
@@ -56,6 +58,8 @@ export async function build(options: BuildOptions): Promise<string> {
 }
 
 export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
+    options = normalizeOptions(options);
+
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
     const { projectRoot, assets, system } = options;
@@ -85,7 +89,7 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
     bundler.events.on("externalSourceFileAdded", file => {
         compilerHost.watchFile(file.fileName, () => {
             state = "dirty";
-            bundler.invalidate(portablePathToFilePath(file.fileName));
+            bundler.invalidate(file.fileName);
             if (pending !== null || timer !== null) {
                 return;
             }
@@ -185,10 +189,17 @@ interface ModuleReference {
     referrer: JSModule;
 }
 
+function normalizeOptions<T extends Options>(options: T): T {
+    return Object.assign({}, options, {
+        projectRoot: crosspath.ensurePosix(options.projectRoot),
+        entrypoint: crosspath.ensurePosix(options.entrypoint),
+    });
+}
+
 function deriveEntrypoint(options: Options): EntrypointName {
     const { projectRoot, entrypoint } = options;
 
-    const input = fsPath.isAbsolute(entrypoint) ? entrypoint : fsPath.join(projectRoot, entrypoint);
+    const input = crosspath.isAbsolute(entrypoint) ? entrypoint : crosspath.join(projectRoot, entrypoint);
     if (!input.startsWith(projectRoot)) {
         throw new Error("entrypoint must be inside the project root");
     }
@@ -211,35 +222,35 @@ function makeOutputOptions(options: Options): OutputOptions {
 }
 
 export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
-    const projectNodeModulesDir = fsPath.join(projectRoot, "node_modules");
-    const compilerNodeModulesDir = fsPath.join(compilerRoot, "node_modules");
+    const projectNodeModulesDir = crosspath.join(crosspath.ensurePosix(projectRoot), "node_modules");
+    const compilerNodeModulesDir = crosspath.join(compilerRoot, "node_modules");
     const shimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
 
     const shims = new Map([
-        ["assert", fsPath.join(shimDir, "@frida", "assert")],
-        ["base64-js", fsPath.join(shimDir, "@frida", "base64-js")],
-        ["buffer", fsPath.join(shimDir, "@frida", "buffer")],
-        ["diagnostics_channel", fsPath.join(shimDir, "@frida", "diagnostics_channel")],
-        ["events", fsPath.join(shimDir, "@frida", "events")],
-        ["fs", fsPath.join(shimDir, "frida-fs")],
-        ["http", fsPath.join(shimDir, "@frida", "http")],
-        ["https", fsPath.join(shimDir, "@frida", "https")],
-        ["http-parser-js", fsPath.join(shimDir, "@frida", "http-parser-js")],
-        ["ieee754", fsPath.join(shimDir, "@frida", "ieee754")],
-        ["net", fsPath.join(shimDir, "@frida", "net")],
-        ["os", fsPath.join(shimDir, "@frida", "os")],
-        ["path", fsPath.join(shimDir, "@frida", "path")],
-        ["process", fsPath.join(shimDir, "@frida", "process")],
-        ["punycode", fsPath.join(shimDir, "@frida", "punycode")],
-        ["querystring", fsPath.join(shimDir, "@frida", "querystring")],
-        ["readable-stream", fsPath.join(shimDir, "@frida", "readable-stream")],
-        ["stream", fsPath.join(shimDir, "@frida", "stream")],
-        ["string_decoder", fsPath.join(shimDir, "@frida", "string_decoder")],
-        ["timers", fsPath.join(shimDir, "@frida", "timers")],
-        ["tty", fsPath.join(shimDir, "@frida", "tty")],
-        ["url", fsPath.join(shimDir, "@frida", "url")],
-        ["util", fsPath.join(shimDir, "@frida", "util")],
-        ["vm", fsPath.join(shimDir, "@frida", "vm")],
+        ["assert", crosspath.join(shimDir, "@frida", "assert")],
+        ["base64-js", crosspath.join(shimDir, "@frida", "base64-js")],
+        ["buffer", crosspath.join(shimDir, "@frida", "buffer")],
+        ["diagnostics_channel", crosspath.join(shimDir, "@frida", "diagnostics_channel")],
+        ["events", crosspath.join(shimDir, "@frida", "events")],
+        ["fs", crosspath.join(shimDir, "frida-fs")],
+        ["http", crosspath.join(shimDir, "@frida", "http")],
+        ["https", crosspath.join(shimDir, "@frida", "https")],
+        ["http-parser-js", crosspath.join(shimDir, "@frida", "http-parser-js")],
+        ["ieee754", crosspath.join(shimDir, "@frida", "ieee754")],
+        ["net", crosspath.join(shimDir, "@frida", "net")],
+        ["os", crosspath.join(shimDir, "@frida", "os")],
+        ["path", crosspath.join(shimDir, "@frida", "path")],
+        ["process", crosspath.join(shimDir, "@frida", "process")],
+        ["punycode", crosspath.join(shimDir, "@frida", "punycode")],
+        ["querystring", crosspath.join(shimDir, "@frida", "querystring")],
+        ["readable-stream", crosspath.join(shimDir, "@frida", "readable-stream")],
+        ["stream", crosspath.join(shimDir, "@frida", "stream")],
+        ["string_decoder", crosspath.join(shimDir, "@frida", "string_decoder")],
+        ["timers", crosspath.join(shimDir, "@frida", "timers")],
+        ["tty", crosspath.join(shimDir, "@frida", "tty")],
+        ["url", crosspath.join(shimDir, "@frida", "url")],
+        ["util", crosspath.join(shimDir, "@frida", "util")],
+        ["vm", crosspath.join(shimDir, "@frida", "vm")],
     ]);
 
     const nodeShimNames = [
@@ -291,7 +302,7 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
 
     const configFileHost = new FridaConfigFileHost(projectRoot, system);
 
-    const opts = ts.getParsedCommandLineOfConfigFile(fsPath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)?.options ?? defaultTsOptions;
+    const opts = ts.getParsedCommandLineOfConfigFile(crosspath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)?.options ?? defaultTsOptions;
     delete opts.noEmit;
     opts.rootDir = projectRoot;
     opts.outDir = "/";
@@ -325,7 +336,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
     function markAllProgramSourcesAsProcessed(program: ts.Program): void {
         for (const sf of program.getSourceFiles()) {
             if (!sf.isDeclarationFile) {
-                const outPath = changeFileExtension(portablePathToFilePath(sf.fileName), "js");
+                const outPath = changeFileExtension(sf.fileName, "js");
                 processedModules.add(outPath);
             }
         }
@@ -352,11 +363,11 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
 
     function assetNameFromFilePath(path: string): string {
         if (path.startsWith(compilerRoot)) {
-            return portablePathFromFilePath(path.substring(compilerRoot.length));
+            return path.substring(compilerRoot.length);
         }
 
         if (path.startsWith(projectRoot)) {
-            return portablePathFromFilePath(path.substring(projectRoot.length));
+            return path.substring(projectRoot.length);
         }
 
         throw new Error(`unexpected file path: ${path}`);
@@ -370,7 +381,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             for (const sf of program.getSourceFiles()) {
                 if (!sf.isDeclarationFile) {
                     const { fileName } = sf;
-                    const path = changeFileExtension(portablePathToFilePath(fileName), "js");
+                    const path = changeFileExtension(fileName, "js");
                     const mod: JSModule = {
                         type: "esm",
                         path,
@@ -465,7 +476,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                     if (compression === "terser") {
                         const mod = modules.get(name)!;
                         const originPath = mod.path;
-                        const originFilename = fsPath.basename(originPath);
+                        const originFilename = crosspath.basename(originPath);
 
                         const minifySources: { [name: string]: string } = {};
                         minifySources[originFilename] = code;
@@ -488,7 +499,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                         if (sourceMaps === "included") {
                             const mapOpts: SourceMapOptions = {
                                 asObject: true,
-                                root: portablePathFromFilePath(fsPath.dirname(originPath)) + "/",
+                                root: crosspath.dirname(originPath) + "/",
                                 filename: name.substring(name.lastIndexOf("/") + 1),
                             } as SourceMapOptions;
 
@@ -523,9 +534,9 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             orderedNames.sort();
 
             const maps = new Set(orderedNames.filter(name => name.endsWith(".map")));
-            const entrypointNormalized = fsPath.normalize(entrypoint.output);
+            const entrypointNormalized = crosspath.normalize(entrypoint.output);
             for (const name of orderedNames.filter(name => !name.endsWith(".map"))) {
-                let index = (fsPath.normalize(name) === entrypointNormalized) ? 0 : names.length;
+                let index = (crosspath.normalize(name) === entrypointNormalized) ? 0 : names.length;
 
                 const mapName = name + ".map";
                 if (maps.has(mapName)) {
@@ -581,9 +592,9 @@ type BundlerEvents = {
 };
 
 function detectModuleType(modPath: string, sys: ts.System): ModuleType {
-    let curDir = fsPath.dirname(modPath);
+    let curDir = crosspath.dirname(modPath);
     while (true) {
-        const rawPkgMeta = sys.readFile(fsPath.join(curDir, "package.json"));
+        const rawPkgMeta = sys.readFile(crosspath.join(curDir, "package.json"));
         if (rawPkgMeta !== undefined) {
             const pkgMeta = JSON.parse(rawPkgMeta);
             if (pkgMeta.type === "module" || pkgMeta.module !== undefined) {
@@ -592,7 +603,7 @@ function detectModuleType(modPath: string, sys: ts.System): ModuleType {
             break;
         }
 
-        const nextDir = fsPath.dirname(curDir);
+        const nextDir = crosspath.dirname(curDir);
         if (nextDir === curDir) {
             break;
         }
@@ -610,7 +621,7 @@ function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts
 
     let modPath: string;
     let needsAlias = false;
-    if (fsPath.isAbsolute(refName)) {
+    if (crosspath.isAbsolute(refName)) {
         modPath = refName;
     } else {
         const tokens = refName.split("/");
@@ -630,34 +641,34 @@ function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts
             if (shimPath.endsWith(".js")) {
                 modPath = shimPath;
             } else {
-                modPath = fsPath.join(shimPath, ...subPath);
+                modPath = crosspath.join(shimPath, ...subPath);
             }
             needsAlias = true;
         } else {
-            const linkedCompilerRoot = fsPath.join(assets.projectNodeModulesDir, "frida-compile");
+            const linkedCompilerRoot = crosspath.join(assets.projectNodeModulesDir, "frida-compile");
             if (requesterPath.startsWith(compilerRoot) || requesterPath.startsWith(linkedCompilerRoot)) {
-                modPath = fsPath.join(assets.shimDir, ...tokens);
+                modPath = crosspath.join(assets.shimDir, ...tokens);
             } else {
-                modPath = fsPath.join(assets.projectNodeModulesDir, ...tokens);
+                modPath = crosspath.join(assets.projectNodeModulesDir, ...tokens);
             }
             needsAlias = subPath.length > 0;
         }
     }
 
     if (system.directoryExists(modPath)) {
-        const rawPkgMeta = system.readFile(fsPath.join(modPath, "package.json"));
+        const rawPkgMeta = system.readFile(crosspath.join(modPath, "package.json"));
         if (rawPkgMeta !== undefined) {
             const pkgMeta = JSON.parse(rawPkgMeta);
             const pkgMain = pkgMeta.module ?? pkgMeta.main ?? "index.js";
-            let pkgEntrypoint = fsPath.join(modPath, pkgMain);
+            let pkgEntrypoint = crosspath.join(modPath, pkgMain);
             if (system.directoryExists(pkgEntrypoint)) {
-                pkgEntrypoint = fsPath.join(pkgEntrypoint, "index.js");
+                pkgEntrypoint = crosspath.join(pkgEntrypoint, "index.js");
             }
 
             modPath = pkgEntrypoint;
             needsAlias = true;
         } else {
-            modPath = fsPath.join(modPath, "index.js");
+            modPath = crosspath.join(modPath, "index.js");
         }
     }
 
@@ -672,7 +683,7 @@ function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts
 }
 
 function processJSModule(mod: JSModule, processedModules: Set<string>, pendingModules: ModuleReference[], jsonFilePaths: Set<string>): void {
-    const moduleDir = fsPath.dirname(mod.path);
+    const moduleDir = crosspath.dirname(mod.path);
     const isCJS = mod.type === "cjs";
     ts.forEachChild(mod.file, visit);
 
@@ -728,7 +739,7 @@ function processJSModule(mod: JSModule, processedModules: Set<string>, pendingMo
     }
 
     function maybeAddModuleToPending(name: string) {
-        const ref = name.startsWith(".") ? fsPath.join(moduleDir, name) : name;
+        const ref = name.startsWith(".") ? crosspath.join(moduleDir, name) : name;
         if (name.endsWith(".json")) {
             jsonFilePaths.add(ref);
         } else if (!processedModules.has(ref)) {
@@ -821,20 +832,10 @@ class FridaConfigFileHost implements ts.ParseConfigFileHost {
 
 function detectCompilerRoot(): string {
     if (process.env.FRIDA_COMPILE !== undefined) {
-        return fsPath.sep + "frida-compile";
+        return "/frida-compile";
     } else {
-        const jsPath = import.meta.url.substring(isWindows ? 8 : 7);
-        const rootPath = fsPath.dirname(fsPath.dirname(jsPath));
-        return portablePathToFilePath(rootPath);
+        return crosspath.dirname(crosspath.dirname(crosspath.urlToFilename(import.meta.url)));
     }
-}
-
-function portablePathFromFilePath(path: string): string {
-    return isWindows ? path.replace(/\\/g, "/") : path;
-}
-
-function portablePathToFilePath(path: string): string {
-    return isWindows ? path.replace(/\//g, "\\") : path;
 }
 
 function changeFileExtension(path: string, ext: string): string {
