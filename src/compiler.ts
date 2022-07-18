@@ -8,7 +8,6 @@ import { minify, MinifyOptions, SourceMapOptions } from "terser";
 import TypedEmitter from "typed-emitter";
 import ts from "../ext/typescript.js";
 
-const isWindows = process.platform === "win32";
 const compilerRoot = detectCompilerRoot();
 
 const sourceTransformers: ts.CustomTransformers = {
