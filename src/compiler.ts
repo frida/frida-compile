@@ -100,7 +100,7 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
     });
 
     const origPostProgramCreate = compilerHost.afterProgramCreate!;
-    compilerHost.afterProgramCreate = async program => {
+    compilerHost.afterProgramCreate = program => {
         origPostProgramCreate(program);
         process.nextTick(rebundle);
     };
