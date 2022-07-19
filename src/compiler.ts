@@ -61,7 +61,7 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
 
     const entrypoint = deriveEntrypoint(options);
     const outputOptions = makeOutputOptions(options);
-    const { projectRoot, assets, system } = options;
+    const { projectRoot, assets, system, onDiagnostic } = options;
 
     const events = new EventEmitter() as TypedEmitter<WatcherEvents>;
 
@@ -69,9 +69,24 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
     const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (...args: any[]): ts.EmitAndSemanticDiagnosticsBuilderProgram => {
         const program: ts.EmitAndSemanticDiagnosticsBuilderProgram = origCreateProgram(...args);
 
+        if (onDiagnostic !== undefined) {
+            const preEmitDiagnostics = ts.getPreEmitDiagnostics(program.getProgram());
+            for (const diagnostic of preEmitDiagnostics) {
+                onDiagnostic(diagnostic);
+            }
+        }
+
         const origEmit = program.emit;
         program.emit = (targetSourceFile, writeFile, cancellationToken, emitOnlyDtsFiles, customTransformers) => {
-            return origEmit(targetSourceFile, writeFile, cancellationToken, emitOnlyDtsFiles, sourceTransformers);
+            const emitResult = origEmit(targetSourceFile, writeFile, cancellationToken, emitOnlyDtsFiles, sourceTransformers);
+
+            if (onDiagnostic !== undefined) {
+                for (const diagnostic of emitResult.diagnostics) {
+                    onDiagnostic(diagnostic);
+                }
+            }
+
+            return emitResult;
         };
 
         return program;
@@ -141,10 +156,10 @@ export interface Options {
     system: ts.System;
     sourceMaps?: SourceMaps;
     compression?: Compression;
+    onDiagnostic?(diagnostic: ts.Diagnostic): void;
 }
 
 export interface BuildOptions extends Options {
-    onDiagnostic?(diagnostic: ts.Diagnostic): void;
 }
 
 export interface WatchOptions extends Options {
