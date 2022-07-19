@@ -67,6 +67,8 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
 
     const origCreateProgram: any = ts.createEmitAndSemanticDiagnosticsBuilderProgram;
     const createProgram: ts.CreateProgram<ts.EmitAndSemanticDiagnosticsBuilderProgram> = (...args: any[]): ts.EmitAndSemanticDiagnosticsBuilderProgram => {
+        events.emit("compilationStarting");
+
         const program: ts.EmitAndSemanticDiagnosticsBuilderProgram = origCreateProgram(...args);
 
         if (onDiagnostic !== undefined) {
@@ -120,7 +122,10 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
         process.nextTick(rebundle);
     };
 
-    const watchProgram = ts.createWatchProgram(compilerHost);
+    let watchProgram: ts.WatchOfFilesAndCompilerOptions<ts.EmitAndSemanticDiagnosticsBuilderProgram>;
+    process.nextTick(() => {
+        watchProgram = ts.createWatchProgram(compilerHost);
+    });
 
     function rebundle(): void {
         if (pending === null) {
@@ -130,6 +135,8 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
                 pending = null;
                 if (state === "dirty") {
                     rebundle();
+                } else {
+                    events.emit("compilationFinished");
                 }
             });
         } else {
@@ -176,6 +183,8 @@ export interface Assets {
 }
 
 export type WatcherEvents = {
+    compilationStarting: () => void,
+    compilationFinished: () => void,
     bundleUpdated: (bundle: string) => void,
 };
 
