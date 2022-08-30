@@ -4,7 +4,7 @@ import * as crosspath from "@frida/crosspath";
 import EventEmitter from "events";
 import process from "process";
 import { check as checkIdentifier } from "@frida/reserved-words";
-import { minify, MinifyOptions, SourceMapOptions } from "terser";
+import { minify, MinifyOptions, SourceMapOptions } from "@frida/terser";
 import TypedEmitter from "typed-emitter";
 import ts from "../ext/typescript.js";
 
@@ -16,7 +16,7 @@ const sourceTransformers: ts.CustomTransformers = {
     ]
 };
 
-export async function build(options: BuildOptions): Promise<string> {
+export function build(options: BuildOptions): string {
     options = normalizeOptions(options);
 
     const entrypoint = deriveEntrypoint(options);
@@ -53,7 +53,7 @@ export async function build(options: BuildOptions): Promise<string> {
         throw new Error("compilation failed");
     }
 
-    return await bundler.bundle(program);
+    return bundler.bundle(program);
 }
 
 export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
@@ -98,7 +98,6 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
     const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, system, createProgram);
 
     let state: "dirty" | "clean" = "dirty";
-    let pending: Promise<void> | null = null;
     let timer: NodeJS.Timeout | null = null;
 
     const bundler = createBundler(entrypoint, projectRoot, assets, system, outputOptions);
@@ -106,7 +105,7 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
         compilerHost.watchFile(file.fileName, () => {
             state = "dirty";
             bundler.invalidate(file.fileName);
-            if (pending !== null || timer !== null) {
+            if (timer !== null) {
                 return;
             }
             timer = setTimeout(() => {
@@ -128,29 +127,14 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
     });
 
     function rebundle(): void {
-        if (pending === null) {
-            state = "clean";
-            pending = performBundling();
-            pending.then(() => {
-                pending = null;
-                if (state === "dirty") {
-                    rebundle();
-                } else {
-                    events.emit("compilationFinished");
-                }
-            });
-        } else {
-            state = "dirty";
-        }
-    }
-
-    async function performBundling(): Promise<void> {
+        state = "clean";
         try {
-            const bundle = await bundler.bundle(watchProgram.getProgram().getProgram());
+            const bundle = bundler.bundle(watchProgram.getProgram().getProgram());
             events.emit("bundleUpdated", bundle);
         } catch (e) {
             console.error("Failed to bundle:", e);
         }
+        events.emit("compilationFinished");
     }
 
     return events;
@@ -398,7 +382,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
 
     return {
         events,
-        async bundle(program: ts.Program): Promise<string> {
+        bundle(program: ts.Program): string {
             markAllProgramSourcesAsProcessed(program);
 
             for (const sf of program.getSourceFiles()) {
@@ -534,7 +518,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                             minifyOpts.sourceMap = mapOpts;
                         }
 
-                        const result = await minify(minifySources, minifyOpts);
+                        const result = minify(minifySources, minifyOpts);
                         code = result.code!;
 
                         if (sourceMaps === "included") {
@@ -606,7 +590,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
 interface Bundler {
     events: TypedEmitter<BundlerEvents>;
 
-    bundle(program: ts.Program): Promise<string>;
+    bundle(program: ts.Program): string;
     invalidate(path: string): void;
 }
 

@@ -7,7 +7,7 @@ import fsPath from "path";
 import { getNodeSystem } from "./system/node.js";
 import ts from "../ext/typescript.js";
 
-async function main() {
+function main() {
     program
         .usage("[options] <module>")
         .requiredOption("-o, --output <file>", "write output to <file>")
@@ -41,7 +41,7 @@ async function main() {
         compiler.watch(compilerOpts)
             .on("bundleUpdated", writeBundle);
     } else {
-        const bundle = await compiler.build({
+        const bundle = compiler.build({
             ...compilerOpts, onDiagnostic({
                 file,
                 start,
@@ -65,8 +65,9 @@ async function main() {
     }
 }
 
-main()
-    .catch(e => {
-        console.error(e);
-        process.exitCode = 1;
-    });
+try {
+    main();
+} catch (e) {
+    console.error(e);
+    process.exitCode = 1;
+}
