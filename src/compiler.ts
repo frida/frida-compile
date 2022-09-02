@@ -25,6 +25,7 @@ export function build(options: BuildOptions): string {
 
     const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
+    options.onCompilerHostCreated?.(compilerHost);
 
     const program = ts.createProgram({
         rootNames: [entrypoint.input],
@@ -96,6 +97,7 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
 
     const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
     const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, system, createProgram);
+    options.onWatchCompilerHostCreated?.(compilerHost);
 
     let state: "dirty" | "clean" = "dirty";
     let timer: NodeJS.Timeout | null = null;
@@ -151,9 +153,11 @@ export interface Options {
 }
 
 export interface BuildOptions extends Options {
+    onCompilerHostCreated?(compilerHost: ts.CompilerHost): void;
 }
 
 export interface WatchOptions extends Options {
+    onWatchCompilerHostCreated?(compilerHost: ts.WatchCompilerHostOfFilesAndCompilerOptions<ts.EmitAndSemanticDiagnosticsBuilderProgram>): void;
 }
 
 export type SourceMaps = "included" | "omitted";
