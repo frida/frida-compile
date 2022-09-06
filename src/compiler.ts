@@ -300,16 +300,7 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
 }
 
 function makeCompilerOptions(projectRoot: string, system: ts.System, options: OutputOptions): ts.CompilerOptions {
-    const defaultTsOptions: ts.CompilerOptions = {
-        target: ts.ScriptTarget.ES2020,
-        lib: ["lib.es2020.d.ts"],
-        module: ts.ModuleKind.ES2020,
-        moduleResolution: ts.ModuleResolutionKind.NodeJs,
-        allowSyntheticDefaultImports: true,
-        resolveJsonModule: true,
-        allowJs: true,
-        strict: true
-    };
+    const defaultTsOptions = makeDefaultCompilerOptions();
 
     const configFileHost = new FridaConfigFileHost(projectRoot, system);
 
@@ -323,6 +314,19 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
         opts.inlineSourceMap = false;
     }
     return opts;
+}
+
+export function makeDefaultCompilerOptions(): ts.CompilerOptions {
+    return {
+        target: ts.ScriptTarget.ES2020,
+        lib: ["lib.es2020.d.ts"],
+        module: ts.ModuleKind.ES2020,
+        moduleResolution: ts.ModuleResolutionKind.NodeJs,
+        allowSyntheticDefaultImports: true,
+        resolveJsonModule: true,
+        allowJs: true,
+        strict: true
+    };
 }
 
 function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: Assets, system: ts.System, options: OutputOptions): Bundler {
