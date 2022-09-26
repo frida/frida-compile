@@ -27,11 +27,11 @@
     "@frida/crosspath": "^3.0.0",
     "@frida/diagnostics_channel": "^1.0.0",
     "@frida/events": "^4.0.4",
-    "@frida/http": "^4.0.1",
+    "@frida/http": "^4.0.2",
     "@frida/http-parser-js": "^1.0.0",
     "@frida/https": "^1.0.0",
     "@frida/ieee754": "^2.0.2",
-    "@frida/net": "^4.0.0",
+    "@frida/net": "^4.0.1",
     "@frida/os": "^1.0.0",
     "@frida/path": "^2.0.2",
     "@frida/process": "^1.2.1",
@@ -52,8 +52,8 @@
     "typed-emitter": "^2.1.0"
   },
   "devDependencies": {
-    "@types/frida-gum": "^18.1.0",
-    "@types/node": "^18.7.14",
-    "typescript": "^4.8.2"
+    "@types/frida-gum": "^18.2.0",
+    "@types/node": "^18.7.23",
+    "typescript": "^4.8.3"
   }
 }
