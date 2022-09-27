@@ -128,11 +128,16 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
         watchProgram = ts.createWatchProgram(compilerHost);
     });
 
+    let previousBundle: string | null = null;
+
     function rebundle(): void {
         state = "clean";
         try {
             const bundle = bundler.bundle(watchProgram.getProgram().getProgram());
-            events.emit("bundleUpdated", bundle);
+            if (bundle !== previousBundle) {
+                events.emit("bundleUpdated", bundle);
+                previousBundle = bundle;
+            }
         } catch (e) {
             console.error("Failed to bundle:", e);
         }
