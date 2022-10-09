@@ -33,7 +33,7 @@
     "@frida/ieee754": "^2.0.2",
     "@frida/net": "^4.0.1",
     "@frida/os": "^1.0.0",
-    "@frida/path": "^2.0.2",
+    "@frida/path": "^2.0.3",
     "@frida/process": "^1.2.1",
     "@frida/punycode": "^3.0.0",
     "@frida/querystring": "^1.0.0",
