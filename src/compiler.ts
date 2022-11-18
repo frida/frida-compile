@@ -307,10 +307,28 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
 function makeCompilerOptions(projectRoot: string, system: ts.System, options: OutputOptions): ts.CompilerOptions {
     const defaultTsOptions = makeDefaultCompilerOptions();
 
-    const configFileHost = new FridaConfigFileHost(projectRoot, system);
+    const softOptionNames = ["target", "lib", "strict"];
+    const fixedTsOptions = Object.assign({}, defaultTsOptions);
+    for (const name of softOptionNames) {
+        delete fixedTsOptions[name];
+    }
 
-    const opts = ts.getParsedCommandLineOfConfigFile(crosspath.join(projectRoot, "tsconfig.json"), defaultTsOptions, configFileHost)?.options ?? defaultTsOptions;
-    delete opts.noEmit;
+    let opts: ts.CompilerOptions;
+    const configFileHost = new FridaConfigFileHost(projectRoot, system);
+    const userOpts = ts.getParsedCommandLineOfConfigFile(crosspath.join(projectRoot, "tsconfig.json"), fixedTsOptions, configFileHost)?.options;
+    if (userOpts !== undefined) {
+        for (const name of softOptionNames) {
+            const val = userOpts[name];
+            if (val === undefined) {
+                userOpts[name] = defaultTsOptions[name];
+            }
+        }
+        delete userOpts.noEmit;
+        opts = userOpts;
+    } else {
+        opts = defaultTsOptions;
+    }
+
     opts.rootDir = projectRoot;
     opts.outDir = "/";
     if (options.sourceMaps === "included") {
@@ -318,6 +336,7 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
         opts.sourceMap = true;
         opts.inlineSourceMap = false;
     }
+
     return opts;
 }
 
