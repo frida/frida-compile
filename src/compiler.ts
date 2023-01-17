@@ -240,7 +240,9 @@ function makeOutputOptions(options: Options): OutputOptions {
 export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
     const projectNodeModulesDir = crosspath.join(crosspath.ensurePosix(projectRoot), "node_modules");
     const compilerNodeModulesDir = crosspath.join(compilerRoot, "node_modules");
-    const shimDir = sys.directoryExists(compilerNodeModulesDir) ? compilerNodeModulesDir : projectNodeModulesDir;
+    const shimDir = sys.directoryExists(crosspath.join(compilerNodeModulesDir, "@frida"))
+        ? compilerNodeModulesDir
+        : projectNodeModulesDir;
 
     const shims = new Map([
         ["assert", crosspath.join(shimDir, "@frida", "assert")],
