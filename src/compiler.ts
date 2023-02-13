@@ -480,7 +480,13 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                 }
 
                 if (needsAlias) {
-                    mod.aliases.add(refName);
+                    let alias: string;
+                    if (crosspath.isAbsolute(refName)) {
+                        alias = refName.substring(projectRoot.length);
+                    } else {
+                        alias = refName;
+                    }
+                    mod.aliases.add(alias);
                 }
             }
             if (missing.size > 0) {
