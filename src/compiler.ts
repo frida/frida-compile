@@ -240,9 +240,20 @@ function makeOutputOptions(options: Options): OutputOptions {
 export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
     const projectNodeModulesDir = crosspath.join(crosspath.ensurePosix(projectRoot), "node_modules");
     const compilerNodeModulesDir = crosspath.join(compilerRoot, "node_modules");
-    const shimDir = sys.directoryExists(crosspath.join(compilerNodeModulesDir, "@frida"))
-        ? compilerNodeModulesDir
-        : projectNodeModulesDir;
+    let shimDir: string;
+    if (sys.directoryExists(crosspath.join(compilerNodeModulesDir, "@frida"))) {
+        shimDir = compilerNodeModulesDir;
+    } else if (sys.directoryExists(crosspath.join(projectNodeModulesDir, "@frida"))) {
+        shimDir = projectNodeModulesDir;
+    } else {
+        const compilerParent = crosspath.dirname(compilerRoot);
+        if (crosspath.basename(compilerParent) === "node_modules" &&
+                sys.directoryExists(crosspath.join(compilerParent, "@frida"))) {
+            shimDir = compilerParent;
+        } else {
+            throw new Error("Unable to detect shim directory; please file a bug");
+	}
+    }
 
     const shims = new Map([
         ["assert", crosspath.join(shimDir, "@frida", "assert")],
@@ -687,8 +698,11 @@ function resolveModuleReference(ref: ModuleReference, assets: Assets, system: ts
             needsAlias = true;
         } else {
             const linkedCompilerRoot = crosspath.join(assets.projectNodeModulesDir, "frida-compile");
-            if (requesterPath.startsWith(compilerRoot) || requesterPath.startsWith(linkedCompilerRoot)) {
-                modPath = crosspath.join(assets.shimDir, ...tokens);
+            const {shimDir} = assets;
+            if (requesterPath.startsWith(compilerRoot) ||
+                    requesterPath.startsWith(linkedCompilerRoot) ||
+                    requesterPath.startsWith(shimDir)) {
+                modPath = crosspath.join(shimDir, ...tokens);
             } else {
                 modPath = crosspath.join(assets.projectNodeModulesDir, ...tokens);
             }
