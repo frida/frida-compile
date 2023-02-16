@@ -48,7 +48,7 @@
     "@frida/util": "^1.0.3",
     "@frida/vm": "^2.0.0",
     "commander": "^9.4.0",
-    "frida-fs": "^5.2.1",
+    "frida-fs": "^5.2.2",
     "typed-emitter": "^2.1.0"
   },
   "devDependencies": {
