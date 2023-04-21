@@ -45,7 +45,6 @@ const {
     combinePaths,
     containsPath,
     createGetCanonicalFileName,
-    createSingleFileWatcherPerName,
     createSystemWatchFunctions,
     emptyFileSystemEntries,
     generateDjb2Hash,
@@ -77,7 +76,7 @@ export function getNodeSystem(): ts.System {
     const fsSupportsRecursiveFsWatch = process.platform === "win32" || process.platform === "darwin";
     const getCurrentDirectory = memoize(() => process.cwd());
     const { watchFile, watchDirectory } = createSystemWatchFunctions({
-        pollingWatchFile: createSingleFileWatcherPerName(fsWatchFileWorker, useCaseSensitiveFileNames),
+        pollingWatchFileWorker: fsWatchFileWorker,
         getModifiedTime,
         setTimeout,
         clearTimeout,
