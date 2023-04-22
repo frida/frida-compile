@@ -526,9 +526,19 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                     const lines = code.split("\n");
                     const n = lines.length;
                     const lastLine = lines[n - 1];
-                    if (lastLine.startsWith("//# sourceMappingURL=")) {
-                        const precedingLines = lines.slice(0, n - 1);
-                        code = precedingLines.join("\n");
+
+                    const sourceMapToken = "//# sourceMappingURL=";
+                    if (lastLine.startsWith(sourceMapToken)) {
+                      const precedingLines = lines.slice(0, n - 1);
+                      code = precedingLines.join("\n");
+                      
+                      const souceMapDirectory = crosspath.dirname(name);
+                      const souceMapRelativePath = lastLine.substring(sourceMapToken.length);
+                      const souceMapPath = crosspath.join(souceMapDirectory, souceMapRelativePath);
+
+                      if (!output.has(souceMapPath)) {
+                        output.set(souceMapPath, system.readFile("." + souceMapPath));
+                      }
                     }
 
                     if (compression === "terser") {
