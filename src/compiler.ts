@@ -154,6 +154,7 @@ export interface Options {
     system: ts.System;
     sourceMaps?: SourceMaps;
     compression?: Compression;
+    plain?: boolean;
     onDiagnostic?(diagnostic: ts.Diagnostic): void;
 }
 
@@ -189,6 +190,7 @@ interface EntrypointName {
 interface OutputOptions {
     sourceMaps: SourceMaps;
     compression: Compression;
+    plain: boolean;
 }
 
 type ModuleType = "cjs" | "esm";
@@ -232,9 +234,10 @@ function makeOutputOptions(options: Options): OutputOptions {
     const {
         sourceMaps = "included",
         compression = "none",
+        plain = false
     } = options;
 
-    return { sourceMaps, compression };
+    return { sourceMaps, compression, plain };
 }
 
 export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
@@ -606,21 +609,24 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             }
 
             const chunks: string[] = [];
-            chunks.push("📦\n")
-            for (const name of names) {
-                const rawData = Buffer.from(output.get(name)!);
-                chunks.push(`${rawData.length} ${name}\n`);
-                const mod = modules.get(name);
-                if (mod !== undefined) {
-                    for (const alias of mod.aliases) {
-                        chunks.push(`↻ ${alias}\n`)
+            if(!options.plain) {
+                chunks.push("📦\n")
+                for (const name of names) {
+                    const rawData = Buffer.from(output.get(name)!);
+                    chunks.push(`${rawData.length} ${name}\n`);
+                    const mod = modules.get(name);
+                    if (mod !== undefined) {
+                        for (const alias of mod.aliases) {
+                            chunks.push(`↻ ${alias}\n`)
+                        }
                     }
                 }
+                chunks.push("✄\n");
             }
-            chunks.push("✄\n");
+
             let i = 0;
             for (const name of names) {
-                if (i !== 0) {
+                if (i !== 0 && !options.plain) {
                     chunks.push("\n✄\n");
                 }
                 const data = output.get(name)!;

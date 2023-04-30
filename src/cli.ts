@@ -13,7 +13,8 @@ function main() {
         .requiredOption("-o, --output <file>", "write output to <file>")
         .option("-w, --watch", "watch for changes and recompile")
         .option("-S, --no-source-maps", "omit source-maps")
-        .option("-c, --compress", "compress using terser");
+        .option("-c, --compress", "compress using terser")
+        .option("-p, --plain", "plain output without container");
 
     program.parse();
 
@@ -33,6 +34,7 @@ function main() {
         entrypoint,
         sourceMaps: opts.sourceMaps ? "included" : "omitted",
         compression: opts.compress ? "terser" : "none",
+        plain: opts.plain ? true : false,
         assets,
         system
     };
