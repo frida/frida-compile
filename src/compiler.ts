@@ -442,6 +442,10 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
             return path.substring(projectRoot.length);
         }
 
+        if (path.includes("/node_modules/")) {
+            return path.substring(path.indexOf("/node_modules/"));
+        }
+
         throw new Error(`unexpected file path: ${path}`);
     }
 
