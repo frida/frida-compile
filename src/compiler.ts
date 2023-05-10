@@ -237,8 +237,28 @@ function makeOutputOptions(options: Options): OutputOptions {
     return { sourceMaps, compression };
 }
 
+function nodeModulesDir(initialRoot: string, system: ts.System) {
+    function parentDir(path: string) {
+        const parentDir = crosspath.join(path, "..");
+        if (crosspath.normalize(parentDir) !== crosspath.normalize(path)) {
+            return parentDir;
+        } else {
+            return undefined;
+        }
+    }
+
+    for (let root: string | undefined = initialRoot; root !== undefined; root = parentDir(root)) {
+        const path = crosspath.join(root, "node_modules");
+        if (system.directoryExists(path)) {
+            return path;
+        }
+    }
+
+    throw new Error(`Unable to locate node_modules for ${initialRoot}`);
+}
+
 export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets {
-    const projectNodeModulesDir = crosspath.join(crosspath.ensurePosix(projectRoot), "node_modules");
+    const projectNodeModulesDir = nodeModulesDir(projectRoot, sys);
     const compilerNodeModulesDir = crosspath.join(compilerRoot, "node_modules");
     let shimDir: string;
     if (sys.directoryExists(crosspath.join(compilerNodeModulesDir, "@frida"))) {
