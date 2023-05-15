@@ -529,16 +529,25 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
 
                     const sourceMapToken = "//# sourceMappingURL=";
                     if (lastLine.startsWith(sourceMapToken)) {
-                      const precedingLines = lines.slice(0, n - 1);
-                      code = precedingLines.join("\n");
-                      
-                      const souceMapDirectory = crosspath.dirname(name);
-                      const souceMapRelativePath = lastLine.substring(sourceMapToken.length);
-                      const souceMapPath = crosspath.join(souceMapDirectory, souceMapRelativePath);
+                        const precedingLines = lines.slice(0, n - 1);
+                        code = precedingLines.join("\n");
 
-                      if (!output.has(souceMapPath)) {
-                        output.set(souceMapPath, system.readFile("." + souceMapPath));
-                      }
+                        const inlinedSourceMapOrPath = lastLine.substring(sourceMapToken.length);
+
+                        const dataUrlToken = "data:application/json;base64,";
+                        const isInlined = inlinedSourceMapOrPath.startsWith(dataUrlToken);
+
+                        const sourceMapPath = isInlined ? 
+                            `${name}.map` : 
+                            `.${crosspath.join(crosspath.dirname(name), inlinedSourceMapOrPath)}`;
+
+                        if (!output.has(sourceMapPath)) {
+                            const content = isInlined ? 
+                                system.base64decode(inlinedSourceMapOrPath.substring(dataUrlToken.length)) :
+                                system.readFile(sourceMapPath);
+
+                            output.set(sourceMapPath, content);
+                        }
                     }
 
                     if (compression === "terser") {
