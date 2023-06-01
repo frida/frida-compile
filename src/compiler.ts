@@ -542,9 +542,9 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                             : crosspath.join(crosspath.dirname(name), inlinedSourceMapOrPath);
 
                         if (!output.has(sourceMapPath)) {
-                            const content = isInlined ? 
-                                system.base64decode(inlinedSourceMapOrPath.substring(dataUrlToken.length)) :
-                                system.readFile(`.${sourceMapPath}`);
+                            const content = isInlined
+                                ? system.base64decode(inlinedSourceMapOrPath.substring(dataUrlToken.length))
+                                : system.readFile(`.${sourceMapPath}`);
 
                             output.set(sourceMapPath, content);
                         }
