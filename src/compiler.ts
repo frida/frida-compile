@@ -532,23 +532,25 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                         const precedingLines = lines.slice(0, n - 1);
                         code = precedingLines.join("\n");
 
-                        const inlinedSourceMapOrPath = lastLine.substring(sourceMapToken.length);
+                        if (sourceMaps === "included") {
+                            const inlinedSourceMapOrPath = lastLine.substring(sourceMapToken.length);
 
-                        const dataUrlToken = "data:application/json;base64,";
-                        const isInlined = inlinedSourceMapOrPath.startsWith(dataUrlToken);
+                            const dataUrlToken = "data:application/json;base64,";
+                            const isInlined = inlinedSourceMapOrPath.startsWith(dataUrlToken);
 
-                        const sourceMapPath = isInlined
-                            ? `${name}.map`
-                            : crosspath.join(crosspath.dirname(name), inlinedSourceMapOrPath);
+                            const sourceMapPath = isInlined
+                                ? `${name}.map`
+                                : crosspath.join(crosspath.dirname(name), inlinedSourceMapOrPath);
 
-                        if (!output.has(sourceMapPath)) {
-                            const content = isInlined
-                                ? system.base64decode?.(inlinedSourceMapOrPath.substring(dataUrlToken.length))
-                                : system.readFile(`.${sourceMapPath}`);
-                            
-                            if (content !== undefined) {
-                                output.set(sourceMapPath, content);
-                            }                            
+                            if (!output.has(sourceMapPath)) {
+                                const content = isInlined
+                                    ? system.base64decode?.(inlinedSourceMapOrPath.substring(dataUrlToken.length))
+                                    : system.readFile(`.${sourceMapPath}`);
+                                
+                                if (content !== undefined) {
+                                    output.set(sourceMapPath, content);
+                                }                            
+                            }
                         }
                     }
 
