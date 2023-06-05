@@ -546,10 +546,10 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                                 const content = isInlined
                                     ? system.base64decode?.(inlinedSourceMapOrPath.substring(dataUrlToken.length))
                                     : system.readFile(`.${sourceMapPath}`);
-                                
+
                                 if (content !== undefined) {
                                     output.set(sourceMapPath, content);
-                                }                            
+                                }
                             }
                         }
                     }
