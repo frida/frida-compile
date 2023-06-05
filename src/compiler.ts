@@ -252,7 +252,7 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
             shimDir = compilerParent;
         } else {
             throw new Error("Unable to detect shim directory; please file a bug");
-	}
+        }
     }
 
     const shims = new Map([
