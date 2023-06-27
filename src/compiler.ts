@@ -489,7 +489,7 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                 }
             }
             if (missing.size > 0) {
-                throw new Error(`unable to resolve: ${Array.from(missing).join(", ")}`);
+                throw new Error(`unable to resolve:\n\t${Array.from(missing).sort().join("\n\t")}`);
             }
 
             const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs").map(m => m.path).sort();
