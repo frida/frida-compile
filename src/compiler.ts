@@ -358,7 +358,7 @@ export function makeDefaultCompilerOptions(): ts.CompilerOptions {
         target: ts.ScriptTarget.ES2020,
         lib: ["lib.es2020.d.ts"],
         module: ts.ModuleKind.ES2020,
-        moduleResolution: ts.ModuleResolutionKind.NodeJs,
+        moduleResolution: ts.ModuleResolutionKind.Node16,
         allowSyntheticDefaultImports: true,
         resolveJsonModule: true,
         allowJs: true,
