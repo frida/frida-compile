@@ -1,5 +1,4 @@
 import { Buffer } from "buffer";
-import { cjsToEsmTransformer } from "../ext/cjstoesm.js";
 import * as crosspath from "@frida/crosspath";
 import EventEmitter from "events";
 import process from "process";
@@ -493,23 +492,9 @@ function createBundler(entrypoint: EntrypointName, projectRoot: string, assets: 
                 throw new Error(`unable to resolve: ${Array.from(missing).join(", ")}`);
             }
 
-            const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs");
+            const legacyModules = Array.from(modules.values()).filter(m => m.type === "cjs").map(m => m.path).sort();
             if (legacyModules.length > 0) {
-                const opts = makeCompilerOptions(projectRoot, system, options);
-                const host = ts.createIncrementalCompilerHost(opts, system);
-                const p = ts.createProgram({
-                    rootNames: legacyModules.map(m => m.path),
-                    options: { ...opts, allowJs: true },
-                    host
-                });
-                p.emit(undefined, undefined, undefined, undefined, {
-                    before: [
-                        cjsToEsmTransformer()
-                    ],
-                    after: [
-                        useStrictRemovalTransformer()
-                    ]
-                });
+                throw new Error(`only able to bundle ECMAScript modules, detected CommonJS:\n\t${legacyModules.join("\n\t")}`);
             }
 
             for (const path of jsonFilePaths) {

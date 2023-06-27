@@ -1,6 +1,5 @@
 /dist/
 /ext/*.d.ts
-/ext/cjstoesm.js
 /ext/typescript.js
 /node_modules/
 /npm-debug.log
