@@ -279,6 +279,7 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
         ["url", crosspath.join(shimDir, "@frida", "url")],
         ["util", crosspath.join(shimDir, "@frida", "util")],
         ["vm", crosspath.join(shimDir, "@frida", "vm")],
+        ["crypto", crosspath.join(shimDir, "frida-crypto")],
     ]);
 
     const nodeShimNames = [

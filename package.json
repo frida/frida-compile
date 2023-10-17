@@ -48,6 +48,7 @@
     "@frida/util": "^1.0.3",
     "@frida/vm": "^2.0.0",
     "commander": "^9.4.0",
+    "frida-crypto": "git://github.com/hsorbo/frida-crypto.git",
     "frida-fs": "^5.2.3",
     "typed-emitter": "^2.1.0"
   },
