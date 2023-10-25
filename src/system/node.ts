@@ -284,11 +284,17 @@ export function getNodeSystem(): ts.System {
     ) {
         // Node 4.0 `fs.watch` function supports the "recursive" option on both OSX and Windows
         // (ref: https://github.com/nodejs/node/pull/2649 and https://github.com/Microsoft/TypeScript/issues/4643)
+        const extraOptions = fsSupportsRecursiveFsWatch ? { recursive: !!recursive } : {};
         return _fs.watch(
             fileOrDirectory,
-            fsSupportsRecursiveFsWatch ?
-                { persistent: true, recursive: !!recursive } : { persistent: true },
-            callback
+            {
+                persistent: true,
+                encoding: "buffer",
+                ...extraOptions
+            },
+            (eventName, relativeFileName) => {
+                callback(eventName, relativeFileName?.toString("utf8"));
+            }
         );
     }
 
