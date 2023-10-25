@@ -258,6 +258,7 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
         ["assert", crosspath.join(shimDir, "@frida", "assert")],
         ["base64-js", crosspath.join(shimDir, "@frida", "base64-js")],
         ["buffer", crosspath.join(shimDir, "@frida", "buffer")],
+        ["crypto", crosspath.join(shimDir, "@frida", "crypto")],
         ["diagnostics_channel", crosspath.join(shimDir, "@frida", "diagnostics_channel")],
         ["events", crosspath.join(shimDir, "@frida", "events")],
         ["fs", crosspath.join(shimDir, "frida-fs")],
