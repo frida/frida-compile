@@ -285,6 +285,7 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
     const nodeShimNames = [
         "assert",
         "buffer",
+        "crypto",
         "diagnostics_channel",
         "events",
         "fs",
