@@ -348,8 +348,11 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
     if (options.sourceMaps === "included") {
         opts.sourceRoot = projectRoot;
         opts.sourceMap = true;
-        opts.inlineSourceMap = false;
+    } else {
+        opts.sourceRoot = undefined;
+        opts.sourceMap = false;
     }
+    opts.inlineSourceMap = false;
 
     return opts;
 }
