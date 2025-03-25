@@ -22,12 +22,12 @@ export function build(options: BuildOptions): string {
     const outputOptions = makeOutputOptions(options);
     const { projectRoot, assets, system, onDiagnostic } = options;
 
-    const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
+    const [compilerOpts, dtsFiles] = loadConfiguration(projectRoot, system, outputOptions);
     const compilerHost = ts.createIncrementalCompilerHost(compilerOpts, system);
     options.onCompilerHostCreated?.(compilerHost);
 
     const program = ts.createProgram({
-        rootNames: [entrypoint.input],
+        rootNames: [entrypoint.input, ...dtsFiles],
         options: compilerOpts,
         host: compilerHost
     });
@@ -94,8 +94,8 @@ export function watch(options: WatchOptions): TypedEmitter<WatcherEvents> {
         return program;
     };
 
-    const compilerOpts = makeCompilerOptions(projectRoot, system, outputOptions);
-    const compilerHost = ts.createWatchCompilerHost([entrypoint.input], compilerOpts, system, createProgram);
+    const [compilerOpts, dtsFiles] = loadConfiguration(projectRoot, system, outputOptions);
+    const compilerHost = ts.createWatchCompilerHost([entrypoint.input, ...dtsFiles], compilerOpts, system, createProgram);
     options.onWatchCompilerHostCreated?.(compilerHost);
 
     let state: "dirty" | "clean" = "dirty";
@@ -318,7 +318,7 @@ export function queryDefaultAssets(projectRoot: string, sys: ts.System): Assets 
     };
 }
 
-function makeCompilerOptions(projectRoot: string, system: ts.System, options: OutputOptions): ts.CompilerOptions {
+function loadConfiguration(projectRoot: string, system: ts.System, options: OutputOptions): [ts.CompilerOptions, string[]] {
     const defaultTsOptions = makeDefaultCompilerOptions();
 
     const softOptionNames = ["target", "lib", "strict"];
@@ -327,22 +327,20 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
         delete fixedTsOptions[name];
     }
 
-    let opts: ts.CompilerOptions;
+    const configPath = crosspath.join(projectRoot, "tsconfig.json");
+    const configData = system.readFile(configPath) ?? "{}";
+    const configFile = ts.parseJsonText(configPath, configData);
     const configFileHost = new FridaConfigFileHost(projectRoot, system);
-    const userOpts = ts.getParsedCommandLineOfConfigFile(crosspath.join(projectRoot, "tsconfig.json"), fixedTsOptions, configFileHost)?.options;
-    if (userOpts !== undefined) {
-        for (const name of softOptionNames) {
-            const val = userOpts[name];
-            if (val === undefined) {
-                userOpts[name] = defaultTsOptions[name];
-            }
-        }
-        delete userOpts.noEmit;
-        opts = userOpts;
-    } else {
-        opts = defaultTsOptions;
-    }
+    const commandLine = ts.parseJsonSourceFileConfigFileContent(configFile, configFileHost, projectRoot, fixedTsOptions, configPath);
 
+    const opts = commandLine.options;
+    for (const name of softOptionNames) {
+        const val = opts[name];
+        if (val === undefined) {
+            opts[name] = defaultTsOptions[name];
+        }
+    }
+    delete opts.noEmit;
     opts.rootDir = projectRoot;
     opts.outDir = "/";
     if (options.sourceMaps === "included") {
@@ -354,7 +352,9 @@ function makeCompilerOptions(projectRoot: string, system: ts.System, options: Ou
     }
     opts.inlineSourceMap = false;
 
-    return opts;
+    const dtsFiles = commandLine.fileNames.filter(name => name.endsWith(".d.ts"));
+
+    return [opts, dtsFiles];
 }
 
 export function makeDefaultCompilerOptions(): ts.CompilerOptions {
