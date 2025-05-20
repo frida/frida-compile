@@ -49,11 +49,11 @@
     "@frida/util": "^1.0.3",
     "@frida/vm": "^2.0.0",
     "commander": "^11.1.0",
-    "frida-fs": "^5.2.3",
+    "frida-fs": "^6.0.0",
     "typed-emitter": "^2.1.0"
   },
   "devDependencies": {
-    "@types/frida-gum": "^18.3.1",
+    "@types/frida-gum": "^19.0.0",
     "@types/node": "^20.8.8",
     "typescript": "^5.2.2"
   }
