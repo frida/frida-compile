@@ -43,6 +43,7 @@ const byteOrderMarkIndicator = "\uFEFF";
 const tsPriv = ts as any;
 const {
     combinePaths,
+    contains,
     containsPath,
     createGetCanonicalFileName,
     createSystemWatchFunctions,
@@ -53,6 +54,7 @@ const {
     matchFiles,
     memoize,
     normalizeSlashes,
+    resolveJSModule,
     some,
 } = tsPriv;
 
@@ -65,15 +67,20 @@ export function getNodeSystem(): ts.System {
     const pkgDir = _path.dirname(distDir);
     const typescriptJsPath = _path.join(pkgDir, "ext", "typescript.js");
 
-    const nativePattern = /^native |^\([^)]+\)$|^(internal[\\/]|[a-zA-Z0-9_\s]+(\.js)?$)/;
+    const nativePattern = /^native |^\([^)]+\)$|^(?:internal[\\/]|[\w\s]+(?:\.js)?$)/;
+    let activeSession: import("inspector").Session | "stopping" | undefined;
+    let profilePath = "./profile.cpuprofile";
 
-    const isLinuxOrMacOs = process.platform === "linux" || process.platform === "darwin";
+    const isMacOs = process.platform === "darwin";
+    const isLinuxOrMacOs = process.platform === "linux" || isMacOs;
+
+    const statSyncOptions = { throwIfNoEntry: false } as const;
 
     const platform: string = _os.platform();
     const useCaseSensitiveFileNames = isFileSystemCaseSensitive();
     const fsRealpath = !!_fs.realpathSync.native ? process.platform === "win32" ? fsRealPathHandlingLongPath : _fs.realpathSync.native : _fs.realpathSync;
 
-    const fsSupportsRecursiveFsWatch = process.platform === "win32" || process.platform === "darwin";
+    const fsSupportsRecursiveFsWatch = process.platform === "win32" || isMacOs;
     const getCurrentDirectory = memoize(() => process.cwd());
     const { watchFile, watchDirectory } = createSystemWatchFunctions({
         pollingWatchFileWorker: fsWatchFileWorker,
@@ -94,6 +101,7 @@ export function getNodeSystem(): ts.System {
         tscWatchDirectory: process.env.TSC_WATCHDIRECTORY,
         defaultWatchFileKind: () => (nodeSystem as any).defaultWatchFileKind?.(),
         inodeWatching: isLinuxOrMacOs,
+        fsWatchWithTimestamp: isMacOs,
         sysLog: tsPriv.sysLog,
     });
 
@@ -150,49 +158,100 @@ export function getNodeSystem(): ts.System {
             return process.memoryUsage().heapUsed;
         },
         getFileSize(path) {
-            try {
-                const stat = statSync(path);
-                if (stat?.isFile()) {
-                    return stat.size;
-                }
+            const stat = statSync(path);
+            if (stat?.isFile()) {
+                return stat.size;
             }
-            catch { /*ignore*/ }
             return 0;
         },
         exit(exitCode?: number): void {
-            process.exit(exitCode);
+            disableCPUProfiler(() => process.exit(exitCode));
         },
         realpath,
         setTimeout,
         clearTimeout,
         clearScreen: () => {
-            process.stdout.write("\x1Bc");
+            process.stdout.write("\x1B[2J\x1B[3J\x1B[H");
         },
-        base64decode: input => bufferFrom(input, "base64").toString("utf8"),
-        base64encode: input => bufferFrom(input).toString("base64"),
+        base64decode: input => Buffer.from(input, "base64").toString("utf8"),
+        base64encode: input => Buffer.from(input).toString("base64"),
     };
 
     Object.assign(nodeSystem, {
+        preferNonRecursiveWatch: !fsSupportsRecursiveFsWatch,
+        getAccessibleFileSystemEntries,
         getEnvironmentVariable(name: string) {
             return process.env[name] || "";
         },
-        debugMode: !!process.env.NODE_INSPECTOR_IPC || !!process.env.VSCODE_INSPECTOR_OPTIONS || some(process.execArgv as string[], (arg: string) => /^--(inspect|debug)(-brk)?(=\d+)?$/i.test(arg)),
-        setBlocking: () => {
-            (process.stdout as any)?._handle?.setBlocking?.(true);
+        enableCPUProfiler,
+        disableCPUProfiler,
+        cpuProfilingEnabled: () => !!activeSession || contains(process.execArgv, "--cpu-prof") || contains(process.execArgv, "--prof"),
+        debugMode: !!process.env.NODE_INSPECTOR_IPC || !!process.env.VSCODE_INSPECTOR_OPTIONS || some(process.execArgv, (arg: string) => /^--(?:inspect|debug)(?:-brk)?(?:=\d+)?$/i.test(arg)) || !!(process as any).recordreplay,
+        tryEnableSourceMapsForHost() {
+            try {
+                (require("source-map-support") as typeof import("source-map-support")).install();
+            }
+            catch {
+                // Could not enable source maps.
+            }
         },
-        bufferFrom,
+        setBlocking: () => {
+            const handle = (process.stdout as any)?._handle as { setBlocking?: (value: boolean) => void; };
+            if (handle && handle.setBlocking) {
+                handle.setBlocking(true);
+            }
+        },
+        require: (baseDir: string, moduleName: string) => {
+            try {
+                const modulePath = resolveJSModule(moduleName, baseDir, nodeSystem);
+                return { module: require(modulePath), modulePath, error: undefined };
+            }
+            catch (error) {
+                return { module: undefined, modulePath: undefined, error };
+            }
+        },
     });
 
     return nodeSystem;
 
-    /**
-     * `throwIfNoEntry` was added so recently that it's not in the node types.
-     * This helper encapsulates the mitigating usage of `any`.
-     * See https://github.com/nodejs/node/pull/33716
-     */
+    /** Calls fs.statSync, returning undefined if any errors are thrown */
     function statSync(path: string): import("fs").Stats | undefined {
-        // throwIfNoEntry will be ignored by older versions of node
-        return (_fs as any).statSync(path, { throwIfNoEntry: false });
+        // throwIfNoEntry is available in Node 14.17 and above, which matches our supported range.
+        try {
+            return _fs.statSync(path, statSyncOptions);
+        }
+        catch {
+            // This should never happen as we are passing throwIfNoEntry: false,
+            // but guard against this just in case (e.g. a polyfill doesn't check this flag).
+            return undefined;
+        }
+    }
+
+    /**
+     * Uses the builtin inspector APIs to capture a CPU profile
+     * See https://nodejs.org/api/inspector.html#inspector_example_usage for details
+     */
+    function enableCPUProfiler(path: string, cb: () => void) {
+        if (activeSession) {
+            cb();
+            return false;
+        }
+        const inspector: typeof import("inspector") = require("inspector");
+        if (!inspector || !inspector.Session) {
+            cb();
+            return false;
+        }
+        const session = new inspector.Session();
+        session.connect();
+
+        session.post("Profiler.enable", () => {
+            session.post("Profiler.start", () => {
+                activeSession = session;
+                profilePath = path;
+                cb();
+            });
+        });
+        return true;
     }
 
     /**
@@ -202,7 +261,7 @@ export function getNodeSystem(): ts.System {
     function cleanupPaths(profile: import("inspector").Profiler.Profile) {
         let externalFileCounter = 0;
         const remappedPaths = new Map<string, string>();
-        const normalizedDir = normalizeSlashes(__dirname);
+        const normalizedDir = normalizeSlashes(_path.dirname(typescriptJsPath));
         // Windows rooted dir names need an extra `/` prepended to be valid file:/// urls
         const fileUrlRoot = `file://${getRootLength(normalizedDir) === 1 ? "" : "/"}${normalizedDir}`;
         for (const node of profile.nodes) {
@@ -220,11 +279,33 @@ export function getNodeSystem(): ts.System {
         return profile;
     }
 
-    function bufferFrom(input: string, encoding?: BufferEncoding): Buffer {
-        // See https://github.com/Microsoft/TypeScript/issues/25652
-        return Buffer.from && (Buffer.from as Function) !== Int8Array.from
-            ? Buffer.from(input, encoding)
-            : new Buffer(input, encoding);
+    function disableCPUProfiler(cb: () => void) {
+        if (activeSession && activeSession !== "stopping") {
+            const s = activeSession;
+            activeSession.post("Profiler.stop", (err, { profile }) => {
+                if (!err) {
+                    if (statSync(profilePath)?.isDirectory()) {
+                        profilePath = _path.join(profilePath, `${(new Date()).toISOString().replace(/:/g, "-")}+P${process.pid}.cpuprofile`);
+                    }
+                    try {
+                        _fs.mkdirSync(_path.dirname(profilePath), { recursive: true });
+                    }
+                    catch {
+                        // do nothing and ignore fallible fs operation
+                    }
+                    _fs.writeFileSync(profilePath, JSON.stringify(cleanupPaths(profile)));
+                }
+                activeSession = undefined;
+                s.disconnect();
+                cb();
+            });
+            activeSession = "stopping";
+            return true;
+        }
+        else {
+            cb();
+            return false;
+        }
     }
 
     function isFileSystemCaseSensitive(): boolean {
@@ -238,7 +319,7 @@ export function getNodeSystem(): ts.System {
 
     /** Convert all lowercase chars to uppercase, and vice-versa */
     function swapCase(s: string): string {
-        return s.replace(/\w/g, (ch) => {
+        return s.replace(/\w/g, ch => {
             const up = ch.toUpperCase();
             return ch === up ? ch.toLowerCase() : up;
         });
@@ -248,7 +329,7 @@ export function getNodeSystem(): ts.System {
         _fs.watchFile(fileName, { persistent: true, interval: pollingInterval }, fileChanged);
         let eventKind: FileWatcherEventKind;
         return {
-            close: () => _fs.unwatchFile(fileName, fileChanged)
+            close: () => _fs.unwatchFile(fileName, fileChanged),
         };
 
         function fileChanged(curr: import("fs").Stats, prev: import("fs").Stats) {
@@ -284,26 +365,20 @@ export function getNodeSystem(): ts.System {
     ) {
         // Node 4.0 `fs.watch` function supports the "recursive" option on both OSX and Windows
         // (ref: https://github.com/nodejs/node/pull/2649 and https://github.com/Microsoft/TypeScript/issues/4643)
-        const extraOptions = fsSupportsRecursiveFsWatch ? { recursive: !!recursive } : {};
         return _fs.watch(
             fileOrDirectory,
-            {
-                persistent: true,
-                encoding: "buffer",
-                ...extraOptions
-            },
-            (eventName, relativeFileName) => {
-                callback(eventName, relativeFileName?.toString("utf8"));
-            }
+            fsSupportsRecursiveFsWatch ?
+                { persistent: true, recursive: !!recursive } : { persistent: true },
+            callback,
         );
     }
 
-    function readFileWorker(fileName: string, _encoding?: string): string | undefined {
+    function readFile(fileName: string, _encoding?: string): string | undefined {
         let buffer: Buffer;
         try {
             buffer = _fs.readFileSync(fileName);
         }
-        catch (e) {
+        catch {
             return undefined;
         }
         let len = buffer.length;
@@ -328,10 +403,6 @@ export function getNodeSystem(): ts.System {
         }
         // Default is UTF-8 with no byte order mark
         return buffer.toString("utf8");
-    }
-
-    function readFile(fileName: string, _encoding?: string): string | undefined {
-        return readFileWorker(fileName, _encoding);
     }
 
     function writeFile(fileName: string, data: string, writeByteOrderMark?: boolean): void {
@@ -372,13 +443,8 @@ export function getNodeSystem(): ts.System {
                 if (typeof dirent === "string" || dirent.isSymbolicLink()) {
                     const name = combinePaths(path, entry);
 
-                    try {
-                        stat = statSync(name);
-                        if (!stat) {
-                            continue;
-                        }
-                    }
-                    catch (e) {
+                    stat = statSync(name);
+                    if (!stat) {
                         continue;
                     }
                 }
@@ -397,7 +463,7 @@ export function getNodeSystem(): ts.System {
             directories.sort();
             return { files, directories };
         }
-        catch (e) {
+        catch {
             return emptyFileSystemEntries;
         }
     }
@@ -407,27 +473,17 @@ export function getNodeSystem(): ts.System {
     }
 
     function fileSystemEntryExists(path: string, entryKind: FileSystemEntryKind): boolean {
-        // Since the error thrown by fs.statSync isn't used, we can avoid collecting a stack trace to improve
-        // the CPU time performance.
-        const originalStackTraceLimit = Error.stackTraceLimit;
-        Error.stackTraceLimit = 0;
-
-        try {
-            const stat = statSync(path);
-            if (!stat) {
-                return false;
-            }
-            switch (entryKind) {
-                case FileSystemEntryKind.File: return stat.isFile();
-                case FileSystemEntryKind.Directory: return stat.isDirectory();
-                default: return false;
-            }
-        }
-        catch (e) {
+        const stat = statSync(path);
+        if (!stat) {
             return false;
         }
-        finally {
-            Error.stackTraceLimit = originalStackTraceLimit;
+        switch (entryKind) {
+            case FileSystemEntryKind.File:
+                return stat.isFile();
+            case FileSystemEntryKind.Directory:
+                return stat.isDirectory();
+            default:
+                return false;
         }
     }
 
@@ -457,26 +513,14 @@ export function getNodeSystem(): ts.System {
     }
 
     function getModifiedTime(path: string) {
-        // Since the error thrown by fs.statSync isn't used, we can avoid collecting a stack trace to improve
-        // the CPU time performance.
-        const originalStackTraceLimit = Error.stackTraceLimit;
-        Error.stackTraceLimit = 0;
-        try {
-            return statSync(path)?.mtime;
-        }
-        catch (e) {
-            return undefined;
-        }
-        finally {
-            Error.stackTraceLimit = originalStackTraceLimit;
-        }
+        return statSync(path)?.mtime;
     }
 
     function setModifiedTime(path: string, time: Date) {
         try {
             _fs.utimesSync(path, time, time);
         }
-        catch (e) {
+        catch {
             return;
         }
     }
@@ -485,7 +529,7 @@ export function getNodeSystem(): ts.System {
         try {
             return _fs.unlinkSync(path);
         }
-        catch (e) {
+        catch {
             return;
         }
     }
@@ -503,7 +547,7 @@ interface FileWatcher {
 
 type FileWatcherCallback = (fileName: string, eventKind: FileWatcherEventKind, modifiedTime?: Date) => void;
 
-type FsWatchCallback = (eventName: "rename" | "change", relativeFileName: string | undefined) => void;
+type FsWatchCallback = (eventName: "rename" | "change", relativeFileName: string | undefined | null, modifiedTime?: Date) => void;
 
 enum PollingInterval {
     High = 2000,

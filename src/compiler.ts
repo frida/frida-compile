@@ -359,10 +359,9 @@ function loadConfiguration(projectRoot: string, system: ts.System, options: Outp
 
 export function makeDefaultCompilerOptions(): ts.CompilerOptions {
     return {
-        target: ts.ScriptTarget.ES2020,
-        lib: ["lib.es2020.d.ts"],
-        module: ts.ModuleKind.ES2020,
-        moduleResolution: ts.ModuleResolutionKind.Node16,
+        target: ts.ScriptTarget.ES2022,
+        lib: ["lib.es2022.d.ts"],
+        module: ts.ModuleKind.Node16,
         allowSyntheticDefaultImports: true,
         resolveJsonModule: true,
         allowJs: true,
