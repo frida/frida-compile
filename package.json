@@ -24,7 +24,7 @@
     "@frida/assert": "^3.0.1",
     "@frida/base64-js": "^2.0.3",
     "@frida/buffer": "^7.0.4",
-    "@frida/crosspath": "^3.0.0",
+    "@frida/crosspath": "^3.0.2",
     "@frida/crypto": "^1.0.1",
     "@frida/diagnostics_channel": "^1.0.0",
     "@frida/events": "^4.0.4",
@@ -49,7 +49,7 @@
     "@frida/util": "^1.0.3",
     "@frida/vm": "^2.0.0",
     "commander": "^11.1.0",
-    "frida-fs": "^6.0.0",
+    "frida-fs": "^7.0.0",
     "typed-emitter": "^2.1.0"
   },
   "devDependencies": {
