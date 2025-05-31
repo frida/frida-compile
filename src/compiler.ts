@@ -361,7 +361,7 @@ export function makeDefaultCompilerOptions(): ts.CompilerOptions {
     return {
         target: ts.ScriptTarget.ES2022,
         lib: ["lib.es2022.d.ts"],
-        module: ts.ModuleKind.Node16,
+        module: ts.ModuleKind.ESNext,
         allowSyntheticDefaultImports: true,
         resolveJsonModule: true,
         allowJs: true,
