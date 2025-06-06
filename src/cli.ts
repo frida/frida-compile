@@ -246,7 +246,7 @@ function formatFilename(filePath: string, cwd: string): string {
 
 main().catch((e) => {
     setImmediate(() => {
-        console.error(chalk.redBright((e as Error).message));
+        console.error(chalk.red.bold((e as Error).message));
         process.exitCode = 1;
     });
 });
