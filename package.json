@@ -19,7 +19,7 @@
   "dependencies": {
     "chalk": "^5.4.1",
     "commander": "^14.0.0",
-    "frida": "^17.1.0"
+    "frida": "^17.1.2"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
