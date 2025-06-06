@@ -1,3 +1,0 @@
-[submodule "ext/TypeScript"]
-	path = ext/TypeScript
-	url = https://github.com/frida/TypeScript.git

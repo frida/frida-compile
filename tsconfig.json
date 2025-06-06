@@ -1,12 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "lib": ["es2020"],
-    "module": "ES2020",
-    "moduleResolution": "node",
-    "allowSyntheticDefaultImports": true,
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "Node16",
     "strict": true,
-    "rootDir": "src",
     "outDir": "dist",
     "declaration": true
   },
