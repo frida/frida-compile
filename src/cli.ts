@@ -78,32 +78,48 @@ async function main() {
             : frida.JsCompression.None,
     };
 
-    const compiler = new frida.Compiler(frida.getDeviceManager());
+    let compilationStarted: number | null = null;
+
+    const compiler = new frida.Compiler();
 
     if (verbose) {
-        let compilationStarted: number | null = null;
+        compiler.starting.connect(onStarting);
+        compiler.finished.connect(onFinished);
+    }
+    compiler.diagnostics.connect(onDiagnostics);
 
-        compiler.starting.connect(() => {
-            compilationStarted = performance.now();
+    if (opts.watch) {
+        compiler.output.connect(onOutput);
 
-            if (opts.watch) {
-                readline.cursorTo(process.stdout, 0, 0);
-                readline.clearScreenDown(process.stdout);
+        try {
+            await compiler.watch(entrypoint, compilerOpts);
+        } catch (e) {
+            stop();
+            throw e;
+        }
+
+        process.on("SIGINT", stop);
+        process.on("SIGTERM", stop);
+
+        function onOutput(bundle: string) {
+            try {
+                writeBundle(bundle);
+            } catch (e) {
+                console.error(chalk.redBright((e as Error).message));
+                process.exitCode = 1;
+                stop();
             }
+        }
 
-            console.log(formatCompiling(entrypoint, projectRoot));
-        });
-
-        compiler.finished.connect(() => {
-            const timeFinished = performance.now();
-
-            console.log(
-                formatCompiled(entrypoint, projectRoot, compilationStarted!, timeFinished)
-            );
-        });
+        function stop() {
+            compiler.output.disconnect(onOutput);
+        }
+    } else {
+        const bundle = await compiler.build(entrypoint, compilerOpts);
+        writeBundle(bundle);
     }
 
-    compiler.output.connect((bundle: string) => {
+    function writeBundle(bundle: string) {
         if (outputPath === "-") {
             process.stdout.write(bundle);
         } else {
@@ -112,30 +128,34 @@ async function main() {
                     encoding: "utf-8",
                 });
             } catch (e) {
-                console.error(chalk.redBright("Fatal Error:"), e);
-                process.exit(1);
+                throw new Error(`Unable to write bundle: ${(e as Error).message}`);
             }
         }
-    });
+    }
 
-    compiler.diagnostics.connect((diagnostics: Diagnostic[]) => {
+    function onStarting() {
+        compilationStarted = performance.now();
+
+        if (opts.watch) {
+            readline.cursorTo(process.stdout, 0, 0);
+            readline.clearScreenDown(process.stdout);
+        }
+
+        console.log(formatCompiling(entrypoint, projectRoot));
+    }
+
+    function onFinished() {
+        const timeFinished = performance.now();
+
+        console.log(
+            formatCompiled(entrypoint, projectRoot, compilationStarted!, timeFinished)
+        );
+    }
+
+    function onDiagnostics(diagnostics: Diagnostic[]) {
         for (const diag of diagnostics) {
             console.log(formatDiagnostic(diag, projectRoot));
         }
-    });
-
-    if (opts.watch) {
-        await compiler.watch(entrypoint, compilerOpts);
-
-        // TODO: Add missing keepalive-customization in frida-node
-        process.stdin.resume();
-        process.on("SIGINT", shutdown);
-        process.on("SIGTERM", shutdown);
-        function shutdown() {
-            process.stdin.pause();
-        }
-    } else {
-        await compiler.build(entrypoint, compilerOpts);
     }
 }
 
@@ -225,6 +245,8 @@ function formatFilename(filePath: string, cwd: string): string {
 }
 
 main().catch((e) => {
-    console.error(e);
-    process.exitCode = 1;
+    setImmediate(() => {
+        console.error(chalk.redBright((e as Error).message));
+        process.exitCode = 1;
+    });
 });
