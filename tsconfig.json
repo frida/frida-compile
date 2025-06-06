@@ -4,8 +4,7 @@
     "lib": ["ES2022"],
     "module": "Node16",
     "strict": true,
-    "outDir": "dist",
-    "declaration": true
+    "outDir": "dist"
   },
   "include": [
     "src/**/*.ts"

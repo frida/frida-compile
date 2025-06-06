@@ -9,7 +9,6 @@
   "type": "module",
   "bin": "dist/cli.js",
   "files": [
-    "/dist/**/*.d.ts",
     "/dist/**/*.js"
   ],
   "scripts": {
