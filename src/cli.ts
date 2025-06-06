@@ -12,15 +12,15 @@ import readline from "node:readline";
 import { performance } from "node:perf_hooks";
 
 const styleReset = chalk.reset;
-const styleFile = chalk.cyan;
-const styleLocation = chalk.yellow;
-const styleCode = chalk.magenta;
+const styleFile = chalk.cyan.bold;
+const styleLocation = chalk.yellow.bold;
+const styleCode = chalk.gray;
 
 const CATEGORY_STYLE: Record<string, ChalkInstance> = {
-    Error: chalk.redBright,
-    Warning: chalk.yellowBright,
-    Info: chalk.blueBright,
-    Suggestion: chalk.greenBright,
+    error: chalk.red.bold,
+    warning: chalk.yellow.bold,
+    info: chalk.blueBright,
+    suggestion: chalk.greenBright,
 };
 
 async function main() {
