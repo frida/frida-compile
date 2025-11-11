@@ -124,6 +124,7 @@ async function main() {
             process.stdout.write(bundle);
         } else {
             try {
+                fs.mkdirSync(path.dirname(outputPath), {recursive: true})
                 fs.writeFileSync(outputPath, bundle, {
                     encoding: "utf-8",
                 });
