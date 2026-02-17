@@ -70,9 +70,9 @@ async function main() {
         outputFormat: opts.outputFormat,
         bundleFormat: opts.bundleFormat,
         typeCheck: opts.typeCheck,
-        sourceMaps: opts.sourceMaps
-            ? frida.SourceMaps.Included
-            : frida.SourceMaps.Omitted,
+        sourceMaps: opts.noSourceMaps
+            ? frida.SourceMaps.Omitted
+            : frida.SourceMaps.Included,
         compression: opts.compress
             ? frida.JsCompression.Terser
             : frida.JsCompression.None,
@@ -162,7 +162,7 @@ async function main() {
 interface CLIOptions {
     output: string;
     watch: boolean;
-    sourceMaps: boolean;
+    noSourceMaps: boolean;
     compress: boolean;
     verbose: boolean;
     outputFormat: frida.OutputFormat;
