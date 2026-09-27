@@ -29,7 +29,7 @@ async function main() {
         .argument("<module>", "TypeScript/JavaScript module to compile")
         .option("-o, --output <file>", "write output to <file>", "-")
         .option("-w, --watch", "watch for changes and recompile", false)
-        .option("-S, --no-source-maps", "omit source-maps", false)
+        .option("-S, --no-source-maps", "omit source-maps")
         .option("-c, --compress", "minify code", false)
         .option("-v, --verbose", "be verbose", false)
         .addOption(
