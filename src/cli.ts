@@ -29,6 +29,7 @@ async function main() {
         .argument("<module>", "TypeScript/JavaScript module to compile")
         .option("-o, --output <file>", "write output to <file>", "-")
         .option("-w, --watch", "watch for changes and recompile", false)
+        .option("-L, --library", "emit a library into the directory given by -o", false)
         .option("-S, --no-source-maps", "omit source-maps")
         .option("-c, --compress", "minify code", false)
         .option("-v, --verbose", "be verbose", false)
@@ -65,6 +66,10 @@ async function main() {
     const outputPath = opts.output;
     const verbose = opts.watch || opts.verbose;
 
+    if (opts.library && outputPath === "-") {
+        program.error("--library requires -o <directory>");
+    }
+
     const compilerOpts: frida.CompilerOptions = {
         projectRoot,
         outputFormat: opts.outputFormat,
@@ -88,7 +93,28 @@ async function main() {
     }
     compiler.diagnostics.connect(onDiagnostics);
 
-    if (opts.watch) {
+    if (opts.library) {
+        const libraryOpts: frida.LibraryOptions = {
+            projectRoot,
+            sourceMaps: compilerOpts.sourceMaps,
+        };
+
+        if (opts.watch) {
+            const watching = setInterval(() => {}, 1 << 30);
+
+            try {
+                await compiler.watchLibrary(entrypoint, outputPath, libraryOpts);
+            } catch (e) {
+                clearInterval(watching);
+                throw e;
+            }
+
+            process.on("SIGINT", () => clearInterval(watching));
+            process.on("SIGTERM", () => clearInterval(watching));
+        } else {
+            await compiler.buildLibrary(entrypoint, outputPath, libraryOpts);
+        }
+    } else if (opts.watch) {
         compiler.output.connect(onOutput);
 
         try {
@@ -162,6 +188,7 @@ async function main() {
 interface CLIOptions {
     output: string;
     watch: boolean;
+    library: boolean;
     sourceMaps: boolean;
     compress: boolean;
     verbose: boolean;
